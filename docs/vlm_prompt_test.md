@@ -477,10 +477,14 @@ Track both passes here.
 
 - **Deck-level via contact sheet.** Thumbnails lose detail; attach 2–3 full-resolution slides for
   aesthetic calls that need it. Very large decks may need a smaller thumbnail size or multiple sheets.
-- **DECK SUMMARY is currently lightweight.** It covers slide count, density mix, chart/table/image
-  prevalence, title-position consistency, and average word count. The fuller deck-level extraction
-  init.md describes — modal `design_system` (fonts/colors), recurring-element pHash,
-  `consistency_score`, `deviations_from_system` — is still to be added to Pipeline A.
+- **DECK SUMMARY vs. design_system.** The `deck-summary` block (slide count, density mix,
+  chart/table/image prevalence, title consistency, avg words) grounds the deck-level *classification*
+  pass. Pipeline A also now extracts a deterministic `design_system` — modal title/body fonts, color
+  palette, default alignment, and pHash recurring-element detection — surfaced in the hand-tagging
+  template (`slide-tagger template`), where `grid` and each recurring element's `type` are
+  hand-labeled. Still to come: `consistency_score` and `deviations_from_system`. (Recurring-element
+  detection only sees slide-level raster images — logos on the slide master or vector EMF/WMF images
+  aren't hashed.)
 - **Rendering not built.** No LibreOffice on this machine, so slide PNGs (and thus the contact
   sheet) come from manual screenshots/exports for now.
 - **Clean separation.** The VLM never produces structural fields — Pipeline A owns them and they're

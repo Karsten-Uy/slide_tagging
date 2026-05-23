@@ -126,3 +126,35 @@ class DominantVisualMode(str, Enum):
     DATA_LED = "data_led"
     IMAGE_LED = "image_led"
     MIXED = "mixed"
+
+
+# --- Design-system vocabulary (deck-level structural, Pipeline A) ---
+
+
+class FontWeight(str, Enum):
+    REGULAR = "regular"
+    MEDIUM = "medium"
+    BOLD = "bold"
+
+
+class TextAlignment(str, Enum):
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+    JUSTIFY = "justify"
+
+
+class Grid(str, Enum):
+    TWELVE_COLUMN = "12-column"
+    SIX_COLUMN = "6-column"
+    FREE = "free"
+
+
+class RecurringElementType(str, Enum):
+    """What a detected recurring element is — hand-labeled (pHash finds it; a
+    human/VLM says what it is)."""
+
+    LOGO = "logo"
+    PAGE_NUMBER = "page_number"
+    FOOTER = "footer"
+    WATERMARK = "watermark"

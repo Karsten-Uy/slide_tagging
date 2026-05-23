@@ -8,3 +8,5 @@ __pycache__/
 # Generated data (source decks, renders, tagged output)
 data/
 !data/.gitkeep
+tmp/
+reference_data/

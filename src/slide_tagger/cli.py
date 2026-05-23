@@ -4,23 +4,28 @@
     slide-tagger tag deck.pptx --slide 2    # just one slide
     slide-tagger tag deck.pptx --json       # full structural JSON
     slide-tagger deck-summary deck.pptx     # paste-ready DECK SUMMARY block
+    slide-tagger template deck.pptx         # blank hand-tagging template (JSON)
+    slide-tagger validate labels.json       # validate a hand-tagged file
 
-The default outputs are the exact `STRUCTURAL DATA` / `DECK SUMMARY` blocks the
-VLM prompt test (architecture/vlm_prompt_test.md) expects — copy them next to a
-slide screenshot (per-slide pass) or a contact sheet (deck-level pass) in
-claude.ai.
+`tag`/`deck-summary` emit the exact `STRUCTURAL DATA` / `DECK SUMMARY` blocks the
+VLM prompt test (docs/vlm_prompt_test.md) expects. `template`/`validate` support
+manual hand-labeling of reference decks (init.md Phase 1).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from slide_tagger.extractors.structural.aggregator import summarize_deck
 from slide_tagger.extractors.structural.pptx_parser import parse_pptx
 from slide_tagger.schema.enums import DensityBucket
-from slide_tagger.schema.models import DeckSummary, SlideStructural
+from slide_tagger.schema.models import DeckStructural, DeckSummary, SlideStructural
+from slide_tagger.schema.tagged import DeckTag, blank_tag, legend
 
 
 def structural_data_block(slide: SlideStructural) -> str:
@@ -127,6 +132,91 @@ def _cmd_deck_summary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_structural(src: Path) -> DeckStructural | int:
+    """Load structural data from a .pptx (parse) or a Pipeline A .json (load)."""
+    suffix = src.suffix.lower()
+    if suffix == ".json":
+        if not src.exists():
+            print(f"File not found: {src}", file=sys.stderr)
+            return 2
+        try:
+            return DeckStructural.model_validate_json(src.read_text(encoding="utf-8"))
+        except ValidationError as exc:
+            print(f"Not a valid Pipeline A structural JSON:\n{exc}", file=sys.stderr)
+            return 1
+    resolved = _resolve_deck(src)
+    if isinstance(resolved, int):
+        return resolved
+    return parse_pptx(resolved)
+
+
+def _cmd_template(args: argparse.Namespace) -> int:
+    deck = _load_structural(args.source)
+    if isinstance(deck, int):
+        return deck
+    tag = blank_tag(deck)
+    out = {"_legend": legend(), **tag.model_dump(mode="json")}
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    path: Path = args.labels
+    if not path.exists():
+        print(f"File not found: {path}", file=sys.stderr)
+        return 2
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON: {exc}", file=sys.stderr)
+        return 1
+    data.pop("_legend", None)  # template helper, not part of the schema
+
+    try:
+        tag = DeckTag.model_validate(data)
+    except ValidationError as exc:
+        print(f"✗ Schema errors in {path.name}:\n{exc}", file=sys.stderr)
+        return 1
+
+    deck_fields = {
+        "deck_type": tag.deck_type,
+        "style_archetype": tag.style_archetype,
+        "narrative_structure": tag.narrative_structure,
+        "dominant_visual_mode": tag.dominant_visual_mode,
+    }
+    deck_missing = [k for k, v in deck_fields.items() if v is None]
+
+    incomplete = [
+        s.index
+        for s in tag.slides
+        if s.role is None or s.layout_archetype is None or not s.core_message
+    ]
+
+    print(f"✓ Schema valid: {path.name}")
+    deck_done = len(deck_fields) - len(deck_missing)
+    line = f"Deck-level: {deck_done}/{len(deck_fields)} filled"
+    if deck_missing:
+        line += f"  (missing: {', '.join(deck_missing)})"
+    print(line)
+    done = len(tag.slides) - len(incomplete)
+    line = f"Slides fully tagged: {done}/{len(tag.slides)}"
+    if incomplete:
+        line += f"  (incomplete: {incomplete})"
+    print(line)
+
+    ds = tag.design_system
+    if ds is not None and ds.recurring_elements:
+        untyped = [i for i, r in enumerate(ds.recurring_elements) if r.type is None]
+        typed = len(ds.recurring_elements) - len(untyped)
+        line = f"Recurring elements typed: {typed}/{len(ds.recurring_elements)}"
+        if untyped:
+            line += f"  (untyped indices: {untyped})"
+        if ds.grid is None:
+            line += "  · grid: unset"
+        print(line)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Emit UTF-8 regardless of the console code page (e.g. Windows cp932), so
     # the em-dash in the block header and non-ASCII slide titles print cleanly.
@@ -165,6 +255,21 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit the deck-summary JSON instead of the paste-ready block",
     )
     p_sum.set_defaults(func=_cmd_deck_summary)
+
+    p_tpl = sub.add_parser(
+        "template",
+        help="Emit a blank hand-tagging template (structural filled, semantics null).",
+    )
+    p_tpl.add_argument(
+        "source", type=Path, help="A .pptx deck or a Pipeline A structural .json"
+    )
+    p_tpl.set_defaults(func=_cmd_template)
+
+    p_val = sub.add_parser(
+        "validate", help="Validate a hand-tagged JSON file and report completeness."
+    )
+    p_val.add_argument("labels", type=Path, help="Path to a hand-tagged .json file")
+    p_val.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args(argv)
     return args.func(args)

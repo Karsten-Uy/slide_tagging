@@ -7,7 +7,13 @@
       "Bash(python -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
       "Bash(python -c \"import pydantic; print\\('pydantic', pydantic.VERSION\\)\")",
       "Bash(uv sync *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(rm -f tmp/_err.txt)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('valid JSON,', len\\(d['permissions']['allow']\\), 'allow rules'\\)\")",
+      "Bash(uv add *)"
     ]
   }
 }

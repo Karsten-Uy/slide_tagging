@@ -9,7 +9,15 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from slide_tagger.schema.enums import DensityBucket, Position, SourceFormat
+from slide_tagger.schema.enums import (
+    DensityBucket,
+    FontWeight,
+    Grid,
+    Position,
+    RecurringElementType,
+    SourceFormat,
+    TextAlignment,
+)
 
 
 class Density(BaseModel):
@@ -34,12 +42,56 @@ class SlideStructural(BaseModel):
     density: Density
 
 
+class TextStyle(BaseModel):
+    """Modal text styling for a role (title or body). All best-effort; any field
+    may be None when the source doesn't declare it."""
+
+    font_family: str | None = None
+    size_pt: float | None = None
+    weight: FontWeight | None = None
+    color_hex: str | None = None
+    alignment: TextAlignment | None = None
+
+
+class ColorPalette(BaseModel):
+    primary: str | None = None
+    accent: str | None = None
+    neutrals: list[str] = Field(default_factory=list)
+
+
+class RecurringElement(BaseModel):
+    """An image that repeats across the deck (logo/footer/watermark/…).
+
+    `phash`, `position`, and `appears_on_slides` are deterministic (Pipeline A);
+    `type` is hand-labeled — pHash finds the element, a human says what it is."""
+
+    phash: str
+    position: Position | None = None
+    appears_on_slides: list[int] = Field(default_factory=list)
+    type: RecurringElementType | None = None
+
+
+class DesignSystem(BaseModel):
+    """Deck-level design DNA, aggregated deterministically from the source file.
+
+    `grid` and each recurring element's `type` are left for hand-labeling — they
+    aren't reliably derivable from the file."""
+
+    title_style: TextStyle = Field(default_factory=TextStyle)
+    body_style: TextStyle = Field(default_factory=TextStyle)
+    color_palette: ColorPalette = Field(default_factory=ColorPalette)
+    default_text_alignment: TextAlignment | None = None
+    grid: Grid | None = None
+    recurring_elements: list[RecurringElement] = Field(default_factory=list)
+
+
 class DeckStructural(BaseModel):
     """Deterministic deck-level structural data (Pipeline A output)."""
 
     source_filename: str
     source_format: SourceFormat
     slide_count: int
+    design_system: DesignSystem | None = None
     slides: list[SlideStructural] = Field(default_factory=list)
 
 

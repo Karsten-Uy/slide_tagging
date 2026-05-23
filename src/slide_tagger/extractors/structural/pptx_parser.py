@@ -13,6 +13,10 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from slide_tagger.extractors.structural.density import density_bucket
+from slide_tagger.extractors.structural.design_system import (
+    build_design_system,
+    extract_slide_design,
+)
 from slide_tagger.schema.enums import Position, SourceFormat
 from slide_tagger.schema.models import Density, DeckStructural, SlideStructural
 
@@ -126,14 +130,23 @@ def parse_pptx(path: str | Path) -> DeckStructural:
     slide_w = prs.slide_width or _DEFAULT_W
     slide_h = prs.slide_height or _DEFAULT_H
 
-    slides = [
-        _parse_slide(i, slide, slide_w, slide_h)
-        for i, slide in enumerate(prs.slides)
-    ]
+    slides = []
+    all_texts = []
+    all_fills: list[str] = []
+    all_images = []
+    for i, slide in enumerate(prs.slides):
+        slides.append(_parse_slide(i, slide, slide_w, slide_h))
+        texts, fills, images = extract_slide_design(slide, slide_w, slide_h, i)
+        all_texts.extend(texts)
+        all_fills.extend(fills)
+        all_images.extend(images)
+
+    design_system = build_design_system(all_texts, all_fills, all_images, len(slides))
 
     return DeckStructural(
         source_filename=path.name,
         source_format=SourceFormat.PPTX,
         slide_count=len(slides),
+        design_system=design_system,
         slides=slides,
     )
