@@ -1,8 +1,9 @@
-"""Tile slide PNGs into a single contact sheet for the deck-level VLM pass.
+"""Tile slide PNGs into a single contact sheet for the enrichment (VLM) pass.
 
-The deck-level classifier (deck_type, style, narrative, visual mode) needs a
-bird's-eye view of the whole deck. Rendering isn't built yet (no LibreOffice), so
-screenshot/export each slide to a folder, then tile them here.
+The deck-level enrichment fields (client_industry, audience_level, …) and the
+deck-wide `inferred_rules` need a bird's-eye view of the whole deck. Rendering
+isn't built yet (no LibreOffice), so screenshot/export each slide to a folder,
+then tile them here.
 
 Usage:
     python scripts/make_contact_sheet.py <slides_dir> -o contact_sheet.png

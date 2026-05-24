@@ -1,5 +1,14 @@
 # Slide Deck Tagging Service: Architecture
 
+> **Note (schema update):** the original Pipeline B / semantic schema sketched below
+> (`deck_type`, `role`, `layout_archetype`, `emphasis_techniques`, …) has been
+> **replaced** by the three-level enrichment schema (deck-, slide-, and element-level
+> `inferred_rules`, plus `provenance`). The authoritative field set now lives in
+> [`deck_tagging_prompt.md`](deck_tagging_prompt.md) and the code
+> ([`src/slide_tagger/schema/enums.py`](../src/slide_tagger/schema/enums.py),
+> [`tagged.py`](../src/slide_tagger/schema/tagged.py)). This doc is kept for its
+> Pipeline A design and overall rationale; treat its semantic-schema JSON as historical.
+
 ## Goal
 
 Build a service that ingests slide decks (.pptx, .pdf) and produces structured design and semantic metadata. The output is a tagged corpus that downstream AI slide generators can retrieve from and condition on, so they produce slides that respect a real design system instead of generic defaults.

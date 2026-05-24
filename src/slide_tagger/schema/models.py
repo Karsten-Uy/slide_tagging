@@ -1,8 +1,8 @@
 """Pydantic models for Pipeline A's deterministic structural output.
 
-These cover the structural subset of init.md's per-slide schema — the fields a
-VLM should never guess. Semantic fields (role, layout_archetype, core_message,
-emphasis_techniques) are added later by Pipeline B and merged in.
+These cover the structural subset of the per-slide schema — the fields a VLM
+should never guess. The semantic enrichment fields (deck-, slide-, and
+element-level; see schema/tagged.py) are added later by Pipeline B and merged in.
 """
 
 from __future__ import annotations
@@ -96,11 +96,11 @@ class DeckStructural(BaseModel):
 
 
 class DeckSummary(BaseModel):
-    """A deterministic, whole-deck overview that grounds the deck-level VLM pass.
+    """A deterministic, whole-deck overview that grounds the enrichment pass.
 
     Aggregated from per-slide structural data — not a VLM output. Gives the
-    deck-level classifier (deck_type, style, narrative, visual mode) a factual
-    picture of the deck without re-deriving structure from the contact sheet.
+    deck-level enrichment (client_industry, audience_level, …) a factual picture
+    of the deck without re-deriving structure from the contact sheet.
     """
 
     source_filename: str

@@ -7,9 +7,11 @@
     slide-tagger template deck.pptx         # blank hand-tagging template (JSON)
     slide-tagger validate labels.json       # validate a hand-tagged file
 
-`tag`/`deck-summary` emit the exact `STRUCTURAL DATA` / `DECK SUMMARY` blocks the
-VLM prompt test (docs/vlm_prompt_test.md) expects. `template`/`validate` support
-manual hand-labeling of reference decks (init.md Phase 1).
+`tag`/`deck-summary` emit paste-ready `STRUCTURAL DATA` / `DECK SUMMARY` grounding
+blocks for inspecting Pipeline A's output. `template`/`validate` drive the
+enrichment + hand-labeling workflow (docs/vlm_prompt_test.md, docs/manual_tagging.md,
+docs/deck_tagging_prompt.md) — `template` emits a blank record (structural filled,
+enrichment null) and `validate` checks it against the schema (init.md Phase 1).
 """
 
 from __future__ import annotations
@@ -160,6 +162,15 @@ def _cmd_template(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_filled(value: object) -> bool:
+    """A field counts as filled if it's a non-empty value (str/enum/list)."""
+    if value is None:
+        return False
+    if isinstance(value, (str, list, dict)):
+        return len(value) > 0
+    return True
+
+
 def _cmd_validate(args: argparse.Namespace) -> int:
     path: Path = args.labels
     if not path.exists():
@@ -178,18 +189,31 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         print(f"✗ Schema errors in {path.name}:\n{exc}", file=sys.stderr)
         return 1
 
+    # Deck-level enrichment fields the tagger fills in (deck_length is auto-set
+    # from slide_count, so it isn't counted here).
     deck_fields = {
-        "deck_type": tag.deck_type,
-        "style_archetype": tag.style_archetype,
-        "narrative_structure": tag.narrative_structure,
-        "dominant_visual_mode": tag.dominant_visual_mode,
+        "client_industry": tag.client_industry,
+        "client_sub_industry": tag.client_sub_industry,
+        "client_type": tag.client_type,
+        "engagement_stage": tag.engagement_stage,
+        "content_area": tag.content_area,
+        "audience_level": tag.audience_level,
+        "deliverable_format": tag.deliverable_format,
+        "geography": tag.geography,
+        "confidentiality_tier": tag.confidentiality_tier,
+        "inferred_publisher": tag.inferred_publisher,
+        "deck_summary_one_sentence": tag.deck_summary_one_sentence,
     }
-    deck_missing = [k for k, v in deck_fields.items() if v is None]
+    deck_missing = [k for k, v in deck_fields.items() if not _is_filled(v)]
 
+    # A slide counts as fully tagged once its core enrichment fields are set.
     incomplete = [
         s.index
         for s in tag.slides
-        if s.role is None or s.layout_archetype is None or not s.core_message
+        if not _is_filled(s.slide_purpose)
+        or not _is_filled(s.message_type)
+        or not _is_filled(s.main_message)
+        or not _is_filled(s.dominant_visual_element)
     ]
 
     print(f"✓ Schema valid: {path.name}")
@@ -214,6 +238,19 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         if ds.grid is None:
             line += "  · grid: unset"
         print(line)
+
+    ir = tag.inferred_rules
+    ir_populated = ir is not None and (
+        _is_filled(ir.title.font_family_observed)
+        or _is_filled(ir.title.size_pt_most_common)
+        or _is_filled(ir.body_text.font_family_observed)
+        or _is_filled(ir.color_palette.primary_observed)
+    )
+    prov_set = tag.provenance is not None and _is_filled(tag.provenance.tagged_by)
+    print(
+        f"Inferred rules: {'populated' if ir_populated else 'empty'}  ·  "
+        f"provenance: {'set' if prov_set else 'unset'}"
+    )
     return 0
 
 

@@ -2,6 +2,13 @@
 
 Every enumerated field draws from one of these sets. Add new values
 deliberately, never ad hoc (init.md: "constrained vocabulary throughout").
+
+Two families live here:
+- Structural (Pipeline A): SourceFormat, DensityBucket, Position, and the
+  design-system enums (FontWeight, TextAlignment, Grid, RecurringElementType).
+- Semantic enrichment (Pipeline B / VLM / hand-label): the deck-level,
+  slide-level, and inferred-rules vocabularies. These mirror the controlled
+  vocabularies in docs/deck_tagging_prompt.md.
 """
 
 from __future__ import annotations
@@ -35,96 +42,227 @@ class Position(str, Enum):
     BOTTOM_RIGHT = "bottom-right"
 
 
-# --- Semantic vocabulary (Pipeline B / the VLM produces these). Defined here so
-# --- the schema's full constrained vocabulary lives in one place. Pipeline A
-# --- does not assign these.
+# --- Deck-level enrichment vocabulary (Pipeline B / VLM produces these). These
+# --- need a whole-deck view; a single slide can't yield them.
 
 
-class SlideRole(str, Enum):
+class ClientIndustry(str, Enum):
+    FINANCIAL_SERVICES = "Financial Services"
+    TECH = "Tech"
+    HEALTHCARE = "Healthcare"
+    PUBLIC_SECTOR = "Public Sector"
+    INDUSTRIALS = "Industrials"
+    CONSUMER = "Consumer"
+    ENERGY = "Energy"
+    EDUCATION = "Education"
+    CROSS_INDUSTRY = "Cross-industry"
+
+
+class ClientType(str, Enum):
+    PUBLIC_SECTOR = "Public sector"
+    PRIVATE_F500 = "Private F500"
+    PRIVATE_MID_MARKET = "Private mid-market"
+    GOVERNMENT_AGENCY = "Government agency"
+    NON_PROFIT = "Non-profit"
+    INTERNAL_THOUGHT_LEADERSHIP = "Internal/thought-leadership"
+
+
+class EngagementStage(str, Enum):
+    RFP_RESPONSE = "RFP response"
+    PITCH_OPPORTUNITY_DEV = "Pitch / opportunity dev"
+    KICKOFF = "Kickoff"
+    MID_PROJECT_READOUT = "Mid-project readout"
+    WEEKLY_UPDATE = "Weekly update"
+    FINAL_DELIVERY = "Final delivery"
+    POV_THOUGHT_LEADERSHIP = "POV / thought leadership"
+
+
+class ContentArea(str, Enum):
+    STRATEGY = "Strategy"
+    DIGITAL_TRANSFORMATION = "Digital transformation"
+    SDLC = "SDLC"
+    AI_ML = "AI/ML"
+    ERP = "ERP"
+    M_AND_A = "M&A"
+    OPERATIONAL_EXCELLENCE = "Operational excellence"
+    ORG_DESIGN = "Org design"
+    COST_REDUCTION = "Cost reduction"
+    RISK = "Risk"
+    MARKET_ANALYSIS = "Market analysis"
+    ESG = "ESG"
+    WORKFORCE = "Workforce"
+    FINANCIAL_REPORTING = "Financial reporting"
+    OTHER = "Other"
+
+
+class AudienceLevel(str, Enum):
+    C_SUITE_BOARD = "C-suite / board"
+    SENIOR_EXECUTIVES = "Senior executives"
+    OPERATING_COMMITTEE = "Operating committee"
+    WORKING_TEAM = "Working team"
+    EXTERNAL_PUBLIC = "External / public"
+
+
+class DeliverableFormat(str, Enum):
+    POWERPOINT = "PowerPoint"
+    PDF = "PDF"
+    HYBRID = "Hybrid"
+    ONLINE_INTERACTIVE = "Online interactive"
+
+
+class Geography(str, Enum):
+    US = "US"
+    UK = "UK"
+    EMEA = "EMEA"
+    APAC = "APAC"
+    GLOBAL = "Global"
+    REGIONAL = "Regional (specify)"
+
+
+class ConfidentialityTier(str, Enum):
+    PUBLIC = "Public"
+    INTERNAL = "Internal"
+    CLIENT_CONFIDENTIAL = "Client-confidential"
+    RESTRICTED = "Restricted"
+
+
+# --- Slide-level enrichment vocabulary (Pipeline B / VLM produces these). ---
+
+
+class SlidePurpose(str, Enum):
+    TITLE = "Title"
+    SECTION_DIVIDER = "Section divider"
+    AGENDA_CONTENTS = "Agenda / Contents"
+    EXEC_SUMMARY = "Exec summary"
+    CONTEXT_SETTING = "Context-setting"
+    CURRENT_STATE = "Current state"
+    FINDING = "Finding"
+    INSIGHT = "Insight"
+    RECOMMENDATION = "Recommendation"
+    FRAMEWORK = "Framework"
+    ROADMAP = "Roadmap"
+    TIMELINE = "Timeline"
+    COMPARISON = "Comparison"
+    DECISION_MATRIX = "Decision matrix"
+    DATA_PRESENTATION = "Data presentation"
+    CASE_STUDY = "Case study"
+    TEAM_INTRO = "Team intro"
+    METHODOLOGY = "Methodology"
+    PRICING = "Pricing"
+    QA = "Q&A"
+    APPENDIX_REFERENCE = "Appendix / reference"
+    CLOSING_CONTACTS = "Closing / contacts"
+
+
+class MessageType(str, Enum):
+    ASSERTION = "Assertion"
+    COMPARISON = "Comparison"
+    SEQUENCE_TIMELINE = "Sequence / timeline"
+    DECOMPOSITION = "Decomposition (parts of whole)"
+    CAUSATION = "Causation"
+    TREND_OVER_TIME = "Trend over time"
+    TRADE_OFF = "Trade-off"
+    PROCESS_FLOW = "Process flow"
+    LISTING_ENUMERATION = "Listing / enumeration"
+    SINGLE_STATISTIC_HERO = "Single statistic / hero number"
+    NO_CLEAR_MESSAGE = "No clear message"
+
+
+class AudienceLevelSlide(str, Enum):
+    C_SUITE_BOARD = "C-suite / board"
+    SENIOR_EXECUTIVES = "Senior executives"
+    OPERATING_COMMITTEE = "Operating committee"
+    WORKING_TEAM = "Working team"
+    EXTERNAL_PUBLIC = "External / public"
+    SAME_AS_DECK = "Same as deck"
+
+
+class SlidePositionRole(str, Enum):
+    HERO_HEADLINE = "Hero / headline"
+    BUILD_SETUP = "Build / setup"
+    EVIDENCE_BACKUP = "Evidence / backup"
+    SYNTHESIS_TAKEAWAY = "Synthesis / takeaway"
+    TRANSITION_DIVIDER = "Transition / divider"
+
+
+class DominantVisualElement(str, Enum):
+    CHART = "Chart"
+    DIAGRAM = "Diagram"
+    TABLE = "Table"
+    IMAGE = "Image"
+    ICON_BASED = "Icon-based"
+    FRAMEWORK_GRAPHIC = "Framework graphic"
+    PURE_TEXT = "Pure text"
+    MIXED = "Mixed"
+
+
+class ChartType(str, Enum):
+    LINE = "Line"
+    BAR = "Bar"
+    STACKED_BAR = "Stacked bar"
+    PIE = "Pie"
+    WATERFALL = "Waterfall"
+    SCATTER = "Scatter"
+    BUBBLE = "Bubble"
+    TREEMAP = "Treemap"
+    HEAT_MAP = "Heat map"
+    SANKEY = "Sankey"
+    OTHER = "Other"
+    NA = "N/A"
+
+
+class PlaceholderCompliance(str, Enum):
+    PRISTINE = "Pristine"
+    REUSABLE = "Reusable"
+    BESPOKE = "Bespoke"
+    BROKEN = "Broken"
+
+
+class SlotType(str, Enum):
     TITLE = "title"
-    SECTION_DIVIDER = "section_divider"
-    AGENDA = "agenda"
-    CONTENT = "content"
-    DATA = "data"
-    QUOTE = "quote"
-    IMAGE_LED = "image_led"
-    COMPARISON = "comparison"
-    TIMELINE = "timeline"
-    SUMMARY = "summary"
-    CTA = "cta"
-
-
-class EmphasisTechnique(str, Enum):
-    HIERARCHY_BY_SIZE = "hierarchy_by_size"
-    HIERARCHY_BY_POSITION = "hierarchy_by_position"
-    HIERARCHY_BY_COLOR = "hierarchy_by_color"
-    ISOLATION_WITH_WHITESPACE = "isolation_with_whitespace"
-    CONTRAST = "contrast"
-    REPETITION = "repetition"
-    DIRECTIONAL_CUES = "directional_cues"
-
-
-class LayoutArchetype(str, Enum):
-    """Starter layout library (17 archetypes), mirroring the set defined in
-    architecture/vlm_prompt_test.md. Grow deliberately as new patterns appear."""
-
-    TITLE_CENTERED = "title_centered"
-    TITLE_LEFT = "title_left"
-    SECTION_DIVIDER = "section_divider"
-    SINGLE_STATEMENT = "single_statement"
-    STAT_HERO = "stat_hero"
-    TWO_COLUMN = "two_column"
-    THREE_COLUMN = "three_column"
-    BULLETED_LIST = "bulleted_list"
-    IMAGE_TEXT_SPLIT = "image_text_split"
-    FULL_BLEED_IMAGE = "full_bleed_image"
-    IMAGE_GRID = "image_grid"
-    CHART_FOCUS = "chart_focus"
+    SUBTITLE = "subtitle"
+    BODY_TEXT = "body-text"
+    BULLET_LIST = "bullet-list"
+    CHART = "chart"
+    IMAGE = "image"
     TABLE = "table"
-    QUOTE = "quote"
-    COMPARISON = "comparison"
-    TIMELINE = "timeline"
-    PROCESS_DIAGRAM = "process_diagram"
+    CALLOUT_BOX = "callout-box"
+    CITATION = "citation"
+    FOOTER = "footer"
+    PAGE_NUMBER = "page-number"
 
 
-# --- Deck-level semantic vocabulary (Pipeline B, deck-level pass). These need a
-# --- whole-deck view (contact sheet), so a single slide can't yield them.
+class ReusabilityScore(str, Enum):
+    HIGH = "High"
+    MEDIUM = "Medium"
+    LOW = "Low"
 
 
-class DeckType(str, Enum):
-    REPORT = "report"
-    PITCH = "pitch"
-    SALES = "sales"
-    CONFERENCE = "conference"
-    EDUCATIONAL = "educational"
-    INTERNAL_MEMO = "internal_memo"
-    ONE_PAGER = "one_pager"
+class TierMatchDifficulty(str, Enum):
+    TIER_1 = "Likely Tier 1 candidate"
+    TIER_2 = "Likely Tier 2"
+    TIER_3 = "Likely Tier 3"
+    TIER_4 = "Likely Tier 4"
 
 
-class StyleArchetype(str, Enum):
-    EDITORIAL = "editorial"
-    CORPORATE = "corporate"
-    MINIMALIST = "minimalist"
-    DATA_HEAVY = "data_heavy"
-    PLAYFUL = "playful"
-    TECHNICAL = "technical"
-    LUXURY = "luxury"
+# --- Inferred-rules vocabulary (element-level style observations, scope=inferred).
 
 
-class NarrativeStructure(str, Enum):
-    PROBLEM_SOLUTION_CTA = "problem_solution_cta"
-    DATA_LED_CONCLUSION = "data_led_conclusion"
-    CHRONOLOGICAL = "chronological"
-    COMPARISON = "comparison"
-    TUTORIAL = "tutorial"
-    NARRATIVE_ARC = "narrative_arc"
-    REFERENCE = "reference"
+class UsesActionTitles(str, Enum):
+    ALWAYS = "always"
+    SOMETIMES = "sometimes"
+    RARELY = "rarely"
 
 
-class DominantVisualMode(str, Enum):
-    TEXT_LED = "text_led"
-    DATA_LED = "data_led"
-    IMAGE_LED = "image_led"
+class ChartPaletteConsistency(str, Enum):
+    TRUE = "true"
+    FALSE = "false"
+    NA = "n/a"
+
+
+class MasterTemplateUsage(str, Enum):
+    TRUE = "true"
+    FALSE = "false"
     MIXED = "mixed"
 
 

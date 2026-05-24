@@ -1,23 +1,38 @@
 """Schema: the constrained vocabulary (enums) and Pydantic models for the
 tagged-slide contract. Structural fields are produced by Pipeline A; the
-semantic enums (role, emphasis, layout) belong to Pipeline B (the VLM) and live
-here so the whole vocabulary is defined in one place (init.md decision)."""
+semantic enrichment enums (deck-, slide-, and element-level) belong to Pipeline
+B (the VLM / hand-label) and live here so the whole vocabulary is defined in one
+place (init.md decision)."""
 
 from slide_tagger.schema.enums import (
-    DeckType,
+    AudienceLevel,
+    AudienceLevelSlide,
+    ChartPaletteConsistency,
+    ChartType,
+    ClientIndustry,
+    ClientType,
+    ConfidentialityTier,
+    ContentArea,
+    DeliverableFormat,
     DensityBucket,
-    DominantVisualMode,
-    EmphasisTechnique,
+    DominantVisualElement,
+    EngagementStage,
     FontWeight,
+    Geography,
     Grid,
-    LayoutArchetype,
-    NarrativeStructure,
+    MasterTemplateUsage,
+    MessageType,
+    PlaceholderCompliance,
     Position,
     RecurringElementType,
-    SlideRole,
+    ReusabilityScore,
+    SlidePositionRole,
+    SlidePurpose,
+    SlotType,
     SourceFormat,
-    StyleArchetype,
     TextAlignment,
+    TierMatchDifficulty,
+    UsesActionTitles,
 )
 from slide_tagger.schema.models import (
     ColorPalette,
@@ -31,26 +46,53 @@ from slide_tagger.schema.models import (
 )
 from slide_tagger.schema.tagged import (
     DeckTag,
+    InferredBodyTextRule,
+    InferredChartStylingRule,
+    InferredColorPaletteRule,
+    InferredLayoutConventionsRule,
+    InferredRules,
+    InferredTitleRule,
+    Provenance,
     SlideTag,
+    Zone,
     blank_tag,
     legend,
 )
 
 __all__ = [
-    "DeckType",
+    # enums — structural
     "DensityBucket",
-    "DominantVisualMode",
-    "EmphasisTechnique",
     "FontWeight",
     "Grid",
-    "LayoutArchetype",
-    "NarrativeStructure",
     "Position",
     "RecurringElementType",
-    "SlideRole",
     "SourceFormat",
-    "StyleArchetype",
     "TextAlignment",
+    # enums — deck-level enrichment
+    "AudienceLevel",
+    "ClientIndustry",
+    "ClientType",
+    "ConfidentialityTier",
+    "ContentArea",
+    "DeliverableFormat",
+    "EngagementStage",
+    "Geography",
+    # enums — slide-level enrichment
+    "AudienceLevelSlide",
+    "ChartType",
+    "DominantVisualElement",
+    "MessageType",
+    "PlaceholderCompliance",
+    "ReusabilityScore",
+    "SlidePositionRole",
+    "SlidePurpose",
+    "SlotType",
+    "TierMatchDifficulty",
+    # enums — inferred rules
+    "ChartPaletteConsistency",
+    "MasterTemplateUsage",
+    "UsesActionTitles",
+    # models — structural
     "ColorPalette",
     "DeckStructural",
     "DeckSummary",
@@ -59,8 +101,17 @@ __all__ = [
     "RecurringElement",
     "SlideStructural",
     "TextStyle",
+    # models — tagged / enrichment
     "DeckTag",
+    "InferredBodyTextRule",
+    "InferredChartStylingRule",
+    "InferredColorPaletteRule",
+    "InferredLayoutConventionsRule",
+    "InferredRules",
+    "InferredTitleRule",
+    "Provenance",
     "SlideTag",
+    "Zone",
     "blank_tag",
     "legend",
 ]
