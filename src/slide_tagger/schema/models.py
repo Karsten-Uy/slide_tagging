@@ -60,15 +60,23 @@ class ColorPalette(BaseModel):
 
 
 class RecurringElement(BaseModel):
-    """An image that repeats across the deck (logo/footer/watermark/…).
+    """An element that repeats across the deck (logo/footer/watermark/page number).
 
-    `phash`, `position`, and `appears_on_slides` are deterministic (Pipeline A);
-    `type` is hand-labeled — pHash finds the element, a human says what it is."""
+    Two ways one gets created, both valid:
+    - **Pipeline A** detects a repeating *image* by perceptual hash and fills
+      `phash`, `position`, and `appears_on_slides` (deterministic); `type` is left
+      for hand-labeling — pHash finds the element, a human says what it is.
+    - **Hand-labeling / VLM** records a recurring element by `type` plus its literal
+      `value` (e.g. footer text "Strategy&"); `value` is omitted for elements with
+      no text, like `page_number`. These carry no `phash`.
 
-    phash: str
+    Every field is therefore optional so both shapes validate against this model."""
+
+    type: RecurringElementType | None = None
+    value: str | None = None  # the element's literal content (e.g. footer text); None for page numbers
+    phash: str | None = None
     position: Position | None = None
     appears_on_slides: list[int] = Field(default_factory=list)
-    type: RecurringElementType | None = None
 
 
 class DesignSystem(BaseModel):

@@ -30,8 +30,9 @@ One JSON file per deck following the `DeckTag` schema
   - *Element-level (`inferred_rules`):* `title`, `body_text`, `color_palette`, `chart_styling`,
     `layout_conventions` — deck-wide style observations, each flagged `scope_tag: "inferred"`.
   - *`provenance`:* who tagged it and any low-confidence notes.
-- The deck-wise `design_system.grid` and each `design_system.recurring_elements[].type` are also
-  hand-labeled (Pipeline A detects *where* each element repeats; you say *what* it is).
+- The deck-wise `design_system.grid` and each `design_system.recurring_elements[].type` (plus its
+  text `value`, where it has one) are also hand-labeled (Pipeline A detects *where* each image element
+  repeats; you say *what* it is, and add text-based ones like footers).
 
 ## Where to do it
 
@@ -69,8 +70,8 @@ Open the JSON and the slides side by side.
 
 At the **top of the file**, set the deck-level fields and the `inferred_rules` block (deck-wide style
 aggregates — e.g. "titles range 22-32pt, most commonly 28pt, in Arial"). In **`design_system`**, set
-`grid` and the `type` of each entry in `recurring_elements`; leave the auto-extracted fonts/colors as
-they are (fix one only if it's clearly wrong).
+`grid` and, for each entry in `recurring_elements`, its `type` and (when it has text, like a footer)
+its `value`; leave the auto-extracted fonts/colors as they are (fix one only if it's clearly wrong).
 
 For **each slide object**, set the slide-level fields (see the [reference](#slide-fields)).
 
@@ -158,7 +159,8 @@ The `*_observed` arrays (fonts, weights, hexes), `size_pt_range`/`size_pt_most_c
 | Field | Allowed values | What it is |
 |---|---|---|
 | `design_system.grid` | 12-column · 6-column · free | The deck's underlying column grid (eyeball it). |
-| `design_system.recurring_elements[].type` | logo · page_number · footer · watermark | What each detected repeating element is. |
+| `design_system.recurring_elements[].type` | logo · page_number · footer · watermark | What each repeating element is. |
+| `design_system.recurring_elements[].value` | Free text (omit for `page_number`) | The element's literal content, e.g. the footer text "Strategy&". |
 
 ## Tips
 

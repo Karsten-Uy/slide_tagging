@@ -1,0 +1,877 @@
+{
+  "_legend": {
+    "client_industry": [
+      "Financial Services",
+      "Tech",
+      "Healthcare",
+      "Public Sector",
+      "Industrials",
+      "Consumer",
+      "Energy",
+      "Education",
+      "Cross-industry"
+    ],
+    "client_type": [
+      "Public sector",
+      "Private F500",
+      "Private mid-market",
+      "Government agency",
+      "Non-profit",
+      "Internal/thought-leadership"
+    ],
+    "engagement_stage": [
+      "RFP response",
+      "Pitch / opportunity dev",
+      "Kickoff",
+      "Mid-project readout",
+      "Weekly update",
+      "Final delivery",
+      "POV / thought leadership"
+    ],
+    "content_area": [
+      "Strategy",
+      "Digital transformation",
+      "SDLC",
+      "AI/ML",
+      "ERP",
+      "M&A",
+      "Operational excellence",
+      "Org design",
+      "Cost reduction",
+      "Risk",
+      "Market analysis",
+      "ESG",
+      "Workforce",
+      "Financial reporting",
+      "Other"
+    ],
+    "audience_level": [
+      "C-suite / board",
+      "Senior executives",
+      "Operating committee",
+      "Working team",
+      "External / public"
+    ],
+    "deliverable_format": [
+      "PowerPoint",
+      "PDF",
+      "Hybrid",
+      "Online interactive"
+    ],
+    "geography": [
+      "US",
+      "UK",
+      "EMEA",
+      "APAC",
+      "Global",
+      "Regional (specify)"
+    ],
+    "confidentiality_tier": [
+      "Public",
+      "Internal",
+      "Client-confidential",
+      "Restricted"
+    ],
+    "slide_purpose": [
+      "Title",
+      "Section divider",
+      "Agenda / Contents",
+      "Exec summary",
+      "Context-setting",
+      "Current state",
+      "Finding",
+      "Insight",
+      "Recommendation",
+      "Framework",
+      "Roadmap",
+      "Timeline",
+      "Comparison",
+      "Decision matrix",
+      "Data presentation",
+      "Case study",
+      "Team intro",
+      "Methodology",
+      "Pricing",
+      "Q&A",
+      "Appendix / reference",
+      "Closing / contacts"
+    ],
+    "message_type": [
+      "Assertion",
+      "Comparison",
+      "Sequence / timeline",
+      "Decomposition (parts of whole)",
+      "Causation",
+      "Trend over time",
+      "Trade-off",
+      "Process flow",
+      "Listing / enumeration",
+      "Single statistic / hero number",
+      "No clear message"
+    ],
+    "audience_level_slide": [
+      "C-suite / board",
+      "Senior executives",
+      "Operating committee",
+      "Working team",
+      "External / public",
+      "Same as deck"
+    ],
+    "slide_position_role": [
+      "Hero / headline",
+      "Build / setup",
+      "Evidence / backup",
+      "Synthesis / takeaway",
+      "Transition / divider"
+    ],
+    "dominant_visual_element": [
+      "Chart",
+      "Diagram",
+      "Table",
+      "Image",
+      "Icon-based",
+      "Framework graphic",
+      "Pure text",
+      "Mixed"
+    ],
+    "chart_type": [
+      "Line",
+      "Bar",
+      "Stacked bar",
+      "Pie",
+      "Waterfall",
+      "Scatter",
+      "Bubble",
+      "Treemap",
+      "Heat map",
+      "Sankey",
+      "Other",
+      "N/A"
+    ],
+    "placeholder_compliance": [
+      "Pristine",
+      "Reusable",
+      "Bespoke",
+      "Broken"
+    ],
+    "slot_types_present": [
+      "title",
+      "subtitle",
+      "body-text",
+      "bullet-list",
+      "chart",
+      "image",
+      "table",
+      "callout-box",
+      "citation",
+      "footer",
+      "page-number"
+    ],
+    "reusability_score_qualitative": [
+      "High",
+      "Medium",
+      "Low"
+    ],
+    "tier_match_difficulty": [
+      "Likely Tier 1 candidate",
+      "Likely Tier 2",
+      "Likely Tier 3",
+      "Likely Tier 4"
+    ],
+    "inferred_rules.title.uses_action_titles": [
+      "always",
+      "sometimes",
+      "rarely"
+    ],
+    "inferred_rules.chart_styling.uses_consistent_palette": [
+      "true",
+      "false",
+      "n/a"
+    ],
+    "inferred_rules.layout_conventions.uses_master_template": [
+      "true",
+      "false",
+      "mixed"
+    ],
+    "design_system.grid": [
+      "12-column",
+      "6-column",
+      "free"
+    ],
+    "design_system.recurring_elements[].type": [
+      "logo",
+      "page_number",
+      "footer",
+      "watermark"
+    ]
+  },
+  "source_filename": "Strategy&_ICO_STO_Study_Version_Spring_2020.pdf",
+  "source_format": "pdf",
+  "slide_count": 12,
+  "client_industry": "Financial Services",
+  "client_sub_industry": "Crypto / Blockchain / FinTech",
+  "client_type": "Internal/thought-leadership",
+  "engagement_stage": "POV / thought leadership",
+  "content_area": [
+    "Market analysis",
+    "Strategy",
+    "Risk",
+    "Financial reporting"
+  ],
+  "audience_level": "Senior executives",
+  "deliverable_format": "PDF",
+  "geography": "Global",
+  "deck_length": 12,
+  "confidentiality_tier": "Public",
+  "inferred_publisher": "PwC Strategy& (Switzerland \u2014 Blockchain practice)",
+  "deck_summary_one_sentence": "6th edition of Strategy& ICO/STO Report (Spring 2020) analyzing global token offering market 2016-2019: $4.1B raised in first 10 months of 2019, top countries (US/Singapore/HK/UK), rise of Security Token Offerings, corporate directly-issued STOs, and Initial Exchange Offerings as emerging crowdfunding instruments.",
+  "design_system": {
+    "title_style": {
+      "font_family": null,
+      "size_pt": null,
+      "weight": "bold",
+      "color_hex": "#000000",
+      "alignment": "left"
+    },
+    "body_style": {
+      "font_family": null,
+      "size_pt": null,
+      "weight": "regular",
+      "color_hex": "#0D0D0D",
+      "alignment": "left"
+    },
+    "color_palette": {
+      "primary": "#C00000",
+      "accent": "#D93953",
+      "neutrals": [
+        "#000000",
+        "#585858",
+        "#FFFFFF"
+      ]
+    },
+    "default_text_alignment": "left",
+    "grid": "free",
+    "recurring_elements": [
+      {
+        "type": "footer",
+        "value": "ICO / STO | Strategic Perspective"
+      },
+      {
+        "type": "footer",
+        "value": "Strategy& | Spring 2020 Edition"
+      },
+      {
+        "type": "page_number"
+      }
+    ]
+  },
+  "inferred_rules": {
+    "title": {
+      "font_family_observed": [],
+      "size_pt_range": null,
+      "size_pt_most_common": null,
+      "weight_observed": [
+        "bold"
+      ],
+      "color_hex_observed": [
+        "#000000"
+      ],
+      "position_most_common": "top-center",
+      "alignment_most_common": "left",
+      "uses_action_titles": "always",
+      "max_chars_observed": 130,
+      "scope_tag": "inferred"
+    },
+    "body_text": {
+      "font_family_observed": [],
+      "size_pt_range": null,
+      "size_pt_most_common": null,
+      "color_hex_observed": [
+        "#0D0D0D"
+      ],
+      "alignment_most_common": "left",
+      "scope_tag": "inferred"
+    },
+    "color_palette": {
+      "primary_observed": "#C00000",
+      "accent_observed": "#D93953",
+      "neutrals_observed": [
+        "#000000",
+        "#585858",
+        "#FFFFFF"
+      ],
+      "notes": "Same Strategy& red palette but pre-2023 design \u2014 this is a Spring 2020 edition. Compared to the 2023 automotive decks, this edition appears denser per slide and uses more tables.",
+      "scope_tag": "inferred"
+    },
+    "chart_styling": {
+      "uses_consistent_palette": "true",
+      "notes": "Mix of bar charts (monthly volumes) and large data tables (rankings). All sourced 'Strategy& analysis'.",
+      "scope_tag": "inferred"
+    },
+    "layout_conventions": {
+      "uses_master_template": "mixed",
+      "no_fly_zones_observed": "Top-band for action titles. Bottom-band for 'ICO / STO | Strategic Perspective' + 'Strategy& | Spring 2020 Edition' + page number. Dense data table layouts dominate the analytic slides (top 15 token offerings, top countries, corporate STOs, tokenization companies).",
+      "scope_tag": "inferred"
+    }
+  },
+  "slides": [
+    {
+      "index": 0,
+      "title_text": "6th ICO/STO Report \u2014 A Strategic Perspective (Spring 2020 Edition)",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": false,
+      "density": {
+        "word_count": 20,
+        "text_blocks": 10,
+        "visual_elements": 0,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "sparse"
+      },
+      "slide_purpose": "Title",
+      "message_type": "No clear message",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Hero / headline",
+      "main_message": "Cover slide: 6th ICO/STO Report \u2014 A Strategic Perspective (Spring 2020 Edition, in collaboration with PwC)",
+      "dominant_visual_element": "Pure text",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Pristine",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "subtitle"
+      ],
+      "reusability_score_qualitative": "High",
+      "tier_match_difficulty": "Likely Tier 1 candidate"
+    },
+    {
+      "index": 1,
+      "title_text": "Executive Summary \u2014 Global status-quo of token offerings",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": false,
+      "density": {
+        "word_count": 450,
+        "text_blocks": 10,
+        "visual_elements": 0,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Exec summary",
+      "message_type": "Decomposition (parts of whole)",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Synthesis / takeaway",
+      "main_message": "Exec summary covering 5 themes: Global perspective on token offerings (US/Singapore/HK/UK lead), ICO/STO/IEO facts & figures, development of global crypto markets, rise of STOs (especially corporate directly-issued), current/future relevance of IEOs",
+      "dominant_visual_element": "Mixed",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 2,
+      "title_text": "In first ten months 2019, over 380 token offerings have raised a total of USD 4.1bn",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": true,
+      "has_table": true,
+      "density": {
+        "word_count": 350,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Finding",
+      "message_type": "Trend over time",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "Token offering volume by month 2016-2019: peaks at $5,855M in early 2018 (EOS), $1,322M in May 2019 (Bitfinex); 2019 YTD average monthly $171M; 380+ token offerings raised $4.1B total in first 10 months 2019",
+      "dominant_visual_element": "Mixed",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 3,
+      "title_text": "Kinesis, besides Bitfinex and GCBIB, has entered top 15 of biggest token offerings in 2019",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": true,
+      "density": {
+        "word_count": 300,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Data presentation",
+      "message_type": "Comparison",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "Top 15 biggest token offerings by total raised since 2016: EOS $4.1B (#1), Telegram $1.7B, Bitfinex $1.0B (May 2019), Tatatu $575M, Dragon $320M, Huobi $300M, HDAC $258M, Filecoin $257M, Tezos $232M, Kinesis $194M (NEW), with focus and country breakdown",
+      "dominant_visual_element": "Table",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 4,
+      "title_text": "USA, Singapore, Hong Kong and UK continue to dominate global token offering sphere",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": true,
+      "density": {
+        "word_count": 300,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Finding",
+      "message_type": "Comparison",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "Leading token offering countries 2019 vs 2018: Hong Kong / Cayman / UAE / Singapore / UK by raised volume; USA/Singapore/HK lead by count; British Virgin Islands / Cayman benefit from single large offerings; Switzerland and Estonia rising European hubs",
+      "dominant_visual_element": "Mixed",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 5,
+      "title_text": "To assess rise of STOs, three relevant perspectives need to be considered",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": false,
+      "density": {
+        "word_count": 80,
+        "text_blocks": 10,
+        "visual_elements": 0,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "balanced"
+      },
+      "slide_purpose": "Framework",
+      "message_type": "Decomposition (parts of whole)",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Build / setup",
+      "main_message": "Three perspectives on Security Token Offerings: A) Overall development of STOs, B) Corporate directly-issued STOs, C) Tokenization ecosystem \u2014 deep dives follow",
+      "dominant_visual_element": "Framework graphic",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 6,
+      "title_text": "STOs continue to establish as pivotal Blockchain-based crowdfunding instrument",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": true,
+      "has_table": false,
+      "density": {
+        "word_count": 180,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "dense"
+      },
+      "slide_purpose": "Finding",
+      "message_type": "Trend over time",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "STO monthly development 2018-2019: solid but volatile pattern; H1 2019 stronger than H2; BoltonCoin STO $68M highlighted; looking forward, regulated infrastructure will drive STO prominence",
+      "dominant_visual_element": "Chart",
+      "chart_type": "Bar",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 7,
+      "title_text": "More and more established institutions globally conduct corporate directly-issued security token offerings",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": true,
+      "density": {
+        "word_count": 300,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Data presentation",
+      "message_type": "Listing / enumeration",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "Selected corporate directly-issued STOs: Austrian Government $1.4B bond (2018), Bank of China $2.8B bond (2019), World Bank $108M bond, Banco Santander \u20ac20M, BBVA \u20ac150M loan, Daimler \u20ac100M bond, Deutsche Bank, J.P. Morgan gold, Soci\u00e9t\u00e9 G\u00e9n\u00e9rale \u20ac100M",
+      "dominant_visual_element": "Table",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 8,
+      "title_text": "Well-established tokenization ecosystem already in place; strong focus on United States as favorable hub",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": true,
+      "density": {
+        "word_count": 300,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "very_dense"
+      },
+      "slide_purpose": "Data presentation",
+      "message_type": "Listing / enumeration",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "Selected tokenization companies: AlphaPoint, Bitmark, CipherCloud, ConsenSys (800 employees), Custodigit, FinFabrik, Harbor, Hypr Corp, Masterworks, Neufund, Smart Valor, Smartlands, Templum, Tokeny Solutions, TrustToken \u2014 most early-stage 2-3 years old, focus on illiquid assets, US-heavy",
+      "dominant_visual_element": "Table",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 9,
+      "title_text": "Despite declining development of token offerings in H2 2019, IEOs are experiencing a strong momentum in crypto sphere",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": true,
+      "has_table": false,
+      "density": {
+        "word_count": 220,
+        "text_blocks": 10,
+        "visual_elements": 1,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "dense"
+      },
+      "slide_purpose": "Finding",
+      "message_type": "Trend over time",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Evidence / backup",
+      "main_message": "IEO development: until early 2019 no significant role; strong 2019 H1 momentum led by Bitfinex $1B (May); H2 2019 low absolute volume but increasing share of total crypto offerings \u2014 progressive institutionalization of IEO crowdfunding instrument",
+      "dominant_visual_element": "Chart",
+      "chart_type": "Bar",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": true,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "Medium",
+      "tier_match_difficulty": "Likely Tier 2"
+    },
+    {
+      "index": 10,
+      "title_text": "We offer a One Firm, Strategy to Execution Client Experience and Offering \u2014 across the globe and in all relevant markets",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": false,
+      "density": {
+        "word_count": 200,
+        "text_blocks": 10,
+        "visual_elements": 0,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "dense"
+      },
+      "slide_purpose": "Team intro",
+      "message_type": "Listing / enumeration",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Transition / divider",
+      "main_message": "Author and PwC blockchain practice contacts: G\u00fcnther Dobrauz (PwC Legal Switzerland), Henri Arslanian (Asia FinTech Lead), Steve Davies (Global Blockchain), John Shipman (Australasia), Henrik Olsson (Nordics), Kris Kersey (USA), Jonas Heydasch (Switzerland), Raphael Ebeling (Switzerland)",
+      "dominant_visual_element": "Pure text",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "High",
+      "tier_match_difficulty": "Likely Tier 1 candidate"
+    },
+    {
+      "index": 11,
+      "title_text": "Thank you / Closing",
+      "title_position": "top-center",
+      "image_count": 0,
+      "has_chart": false,
+      "has_table": false,
+      "density": {
+        "word_count": 50,
+        "text_blocks": 10,
+        "visual_elements": 0,
+        "whitespace_ratio_est": 0.5,
+        "bucket": "sparse"
+      },
+      "slide_purpose": "Closing / contacts",
+      "message_type": "No clear message",
+      "audience_level_slide": "Same as deck",
+      "slide_position_role": "Transition / divider",
+      "main_message": "Closing slide: Thank you, with strategyand.pwc.com and disclaimer",
+      "dominant_visual_element": "Pure text",
+      "chart_type": "N/A",
+      "placeholder_compliance": "Reusable",
+      "embedded_data_present": false,
+      "zones": [
+        {
+          "name": "title",
+          "region": "top-band"
+        },
+        {
+          "name": "main-content",
+          "region": "center"
+        },
+        {
+          "name": "footer",
+          "region": "bottom-band"
+        }
+      ],
+      "slot_types_present": [
+        "title",
+        "body-text",
+        "footer",
+        "page-number"
+      ],
+      "reusability_score_qualitative": "High",
+      "tier_match_difficulty": "Likely Tier 1 candidate"
+    }
+  ],
+  "provenance": {
+    "tagged_by": "Claude (Opus, 2026-05-23)",
+    "input_json_source": "PDF text extraction via web_fetch (no structural script run)",
+    "fields_filled_by_ai": [
+      "all semantic and structural fields"
+    ],
+    "confidence_notes": "HIGH confidence on slide_purpose, message_type, main_message \u2014 full PDF text extracted. MEDIUM confidence on density/word counts (estimated). Structural fields unknown (no .pptx). 12 slides is conservative count; some 'slide' entries may actually be 2 pages in the PDF. This is a 2020-era Strategy& publication \u2014 has a different visual maturity than 2023 automotive decks but uses same brand palette. Strong example of dense data-table-heavy consulting style; useful Tier 2 reference for ranking/comparison slides."
+  }
+}

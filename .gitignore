@@ -9,4 +9,4 @@ __pycache__/
 data/
 !data/.gitkeep
 tmp/
-reference_data/
+archive/

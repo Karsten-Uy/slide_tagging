@@ -36,9 +36,10 @@ You are an expert at tagging consulting and business presentation decks for a kn
 ### Your task
 
 Produce an enriched JSON that:
-- Preserves every field in the input JSON exactly as-is (all Pipeline A structural fields, the `design_system` block, and `deck_length`)
+- Preserves the Pipeline A structural fields exactly as-is (per-slide `title_*`, `image_count`, `has_chart`, `has_table`, `density`; the `design_system` fonts/colors — `title_style`, `body_style`, `color_palette`, `default_text_alignment`; and `deck_length`)
 - Fills in all `null` enrichment fields using the controlled vocabularies in `_legend`
 - Fills the new deck-, slide-, and element-level fields specified below
+- Fills the `design_system` hand-label fields — `grid` and each `recurring_elements[].type` (and its `value` where it has text) — described below
 - Fills the `provenance` block recording what was filled in by you vs. extracted by the script
 
 ### Schema (three levels)
@@ -54,7 +55,7 @@ Produce an enriched JSON that:
   "content_area": ["array of strings from: Strategy, Digital transformation, SDLC, AI/ML, ERP, M&A, Operational excellence, Org design, Cost reduction, Risk, Market analysis, ESG, Workforce, Financial reporting, Other"],
   "audience_level": "C-suite / board | Senior executives | Operating committee | Working team | External / public",
   "deliverable_format": "PowerPoint | PDF | Hybrid | Online interactive",
-  "geography": "US | UK | EMEA | APAC | Global | Regional (specify)",
+  "geography": "US | UK | EMEA | APAC | Global | Regional (specify) — IMPORTANT: use the literal string 'Regional (specify)' verbatim; do NOT append the region name here. Name the actual region in deck_summary_one_sentence instead.",
   "deck_length": "integer (matches slide_count; pre-filled by Pipeline A)",
   "confidentiality_tier": "Public | Internal | Client-confidential | Restricted",
   "inferred_publisher": "string (best guess at firm if not stated, e.g., 'PwC', 'McKinsey')",
@@ -66,20 +67,20 @@ Produce an enriched JSON that:
 
 ```json
 {
-  "slide_purpose": "Title | Section divider | Agenda / Contents | Exec summary | Context-setting | Current state | Finding | Insight | Recommendation | Framework | Roadmap | Timeline | Comparison | Decision matrix | Data presentation | Case study | Team intro | Methodology | Pricing | Q&A | Appendix / reference | Closing / contacts",
+  "slide_purpose": "Title | Section divider | Agenda / Contents | Exec summary | Context-setting | Current state | Finding | Insight | Recommendation | Framework | Roadmap | Timeline | Comparison | Decision matrix | Data presentation | Case study | Team intro | Methodology | Pricing | Q&A | Appendix / reference | Closing / contacts. KEY DISTINCTION: a slide that uses a chart/table to SUPPORT a stated conclusion (an action-title making a point, e.g. 'Chinese consumers prefer BEV') is a Finding, NOT Data presentation — even though it has a chart. Reserve 'Data presentation' for pure data displays/dashboards with no single argued takeaway. Use 'Insight' when the takeaway is a synthesized 'so what' rather than a direct read of the data.",
   "message_type": "Assertion | Comparison | Sequence / timeline | Decomposition (parts of whole) | Causation | Trend over time | Trade-off | Process flow | Listing / enumeration | Single statistic / hero number | No clear message",
-  "audience_level_slide": "C-suite / board | Senior executives | Operating committee | Working team | External / public | Same as deck",
-  "slide_position_role": "Hero / headline | Build / setup | Evidence / backup | Synthesis / takeaway | Transition / divider",
+  "audience_level_slide": "C-suite / board | Senior executives | Operating committee | Working team | External / public | Same as deck — DEFAULT to 'Same as deck'. Only pick a specific level when a slide clearly targets a different audience than the deck (e.g. a technical appendix in a board deck). Do not restate the deck's audience per slide.",
+  "slide_position_role": "Hero / headline | Build / setup | Evidence / backup | Synthesis / takeaway | Transition / divider — this is the slide's NARRATIVE role in the flow. Use ONLY these five values; do NOT put slide_purpose values (Finding, Insight, Recommendation, Context-setting, …) here.",
   "main_message": "string (action title or one-sentence summary of the slide's main point — extract from title if it's an action title, otherwise infer from content)",
   "dominant_visual_element": "Chart | Diagram | Table | Image | Icon-based | Framework graphic | Pure text | Mixed",
   "chart_type": "Line | Bar | Stacked bar | Pie | Waterfall | Scatter | Bubble | Treemap | Heat map | Sankey | Other | N/A (if dominant_visual_element != Chart)",
-  "placeholder_compliance": "Pristine (uses master placeholders) | Reusable (custom but consistent) | Bespoke (one-off layout) | Broken (would not survive content swap)",
+  "placeholder_compliance": "Pristine (master placeholders) | Reusable (custom shapes but a layout PATTERN that recurs across the deck) | Bespoke (a genuinely one-off layout used only on this slide) | Broken (would not survive a content swap). DEFAULT content slides to Reusable when they follow a repeated structure (e.g. title-band + main-chart + side-callout 'insights'); reserve Bespoke for unique conceptual diagrams/infographics.",
   "embedded_data_present": "true if chart objects contain real data, false if charts are images/screenshots",
   "zones": [
     {"name": "string (e.g., 'title', 'main-content', 'callout', 'footer')", "region": "string (e.g., 'top-band', 'center-2col-left', 'bottom-band')"}
   ],
   "slot_types_present": ["array from: title, subtitle, body-text, bullet-list, chart, image, table, callout-box, citation, footer, page-number"],
-  "reusability_score_qualitative": "High | Medium | Low (your judgment of how reusable this slide is across contexts)",
+  "reusability_score_qualitative": "High (generic structure reusable across many decks — title, agenda, standard chart, closing/contacts) | Medium (a standard content pattern reusable within this domain — most finding/data/insight/context slides) | Low (tightly bound to this deck's specific content — bespoke conceptual diagrams). Most ordinary content slides are Medium, NOT Low; reserve Low for genuinely one-off visuals.",
   "tier_match_difficulty": "Likely Tier 1 candidate | Likely Tier 2 | Likely Tier 3 | Likely Tier 4 (your judgment of how hard it would be to find a near-match for this slide in a corpus)"
 }
 ```
@@ -132,6 +133,27 @@ Extract style rules from observed practice across the deck. These are *inferred*
 }
 ```
 
+#### Design-system fields to fill (inside the preserved `design_system` block)
+
+Pipeline A fills the `design_system` fonts and colors (`title_style`, `body_style`, `color_palette`, `default_text_alignment`) — **leave those exactly as they are**. Two fields in this block are left for you to fill:
+
+```json
+{
+  "design_system": {
+    "grid": "12-column | 6-column | free (the deck's underlying column grid — eyeball it)",
+    "recurring_elements": [
+      {
+        "type": "logo | page_number | footer | watermark",
+        "value": "string — the element's literal content, e.g. the footer text 'Strategy&'; omit for page_number (no text)"
+      }
+    ]
+  }
+}
+```
+
+- Set `grid` to the deck's dominant column structure.
+- For `recurring_elements`, list every element that repeats deck-wide. Give each a `type` from the legend and, when it carries text (footers, watermarks), its literal `value`. A `page_number` element needs only `type`. If Pipeline A pre-populated `recurring_elements` from image-pHash detection, set the `type` of each entry it found and keep its `phash`/`position`/`appears_on_slides`; add any text-based recurring elements (footers, etc.) it could not detect.
+
 #### Provenance block (top level)
 
 ```json
@@ -157,9 +179,11 @@ Extract style rules from observed practice across the deck. These are *inferred*
 
 5. **For `tier_match_difficulty`:** consider whether this slide's combination of purpose + layout + message type + density is common (Tier 1-2 likely) or unusual (Tier 3-4 likely). Section dividers, title slides, agenda slides, and standard data tables are usually Tier 1-2. Bespoke diagrams, unusual charts, custom infographics are usually Tier 3-4.
 
-6. **For `inferred_rules`:** aggregate observations across ALL slides to extract patterns. A rule isn't "the title on slide 5 was Arial 24pt" — it's "across the deck, titles range from 22-32pt, most commonly 28pt, in Arial." Keep `scope_tag` as `inferred` always — these are observations, not authoritative rules.
+6. **Calibrate `placeholder_compliance` and `reusability_score_qualitative` — don't over-pessimize.** Consulting decks reuse a small set of layout patterns: a recurring content slide (title-band + main visual + side-callout) is `Reusable` placeholder_compliance and `Medium` reusability, NOT `Bespoke`/`Low`. Reserve `Bespoke`/`Low` for genuinely one-off conceptual diagrams and infographics. If you find yourself tagging most content slides `Bespoke` or `Low`, you are over-pessimizing — step back and judge against the deck's repeated structure.
 
-7. **For low-confidence tags, populate them but flag in `confidence_notes`.** Better a best-guess with a flag than a null field.
+7. **For `inferred_rules`:** aggregate observations across ALL slides to extract patterns. A rule isn't "the title on slide 5 was Arial 24pt" — it's "across the deck, titles range from 22-32pt, most commonly 28pt, in Arial." Keep `scope_tag` as `inferred` always — these are observations, not authoritative rules.
+
+8. **For low-confidence tags, populate them but flag in `confidence_notes`.** Better a best-guess with a flag than a null field.
 
 ### Output format
 

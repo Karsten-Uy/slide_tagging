@@ -62,6 +62,53 @@ Rendering needs two system dependencies:
   (Linux) or unzip the [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases)
   release and point `--poppler-path` at its `Library\bin`.
 
+### Scoring the enrichment prompt (Pipeline B)
+
+Once you have hand-labeled decks in `reference_data/hand_labels/` (the answer key),
+`score` / `eval` turn the manual rubric into measured per-field accuracy, so you can
+optimize the enrichment prompt against real numbers. VLM output is still produced
+manually (paste the prompt into Claude.ai) and saved to `data/tagged/`; the harness
+scores it — no API key required.
+
+```bash
+# Guard: re-impose Pipeline A structural fields the VLM may have altered, then save
+# under the hand-label's filename so `eval` pairs them. (Tolerates a ```json fence.)
+uv run slide-tagger merge vlm_out.json input.json -o data/tagged/<deck>.json
+
+# One deck: predicted (VLM-enriched) vs its hand-label
+uv run slide-tagger score data/tagged/<deck>.json reference_data/hand_labels/<deck>.json
+
+# Whole corpus: every data/tagged/*.json against the matching hand_labels/*.json
+uv run slide-tagger eval                                   # console scorecard
+uv run slide-tagger eval --json report.json --markdown report.md
+```
+
+**Automated benchmarking (`bench`).** Single manual runs have large run-to-run
+variance (a deck can swing ~±20 points), which swamps the effect of a prompt edit.
+`bench` calls the Claude API to run the enrichment prompt **N times per deck** and
+reports **mean ± std**, so prompt changes become measurable. Needs
+`ANTHROPIC_API_KEY`; the deck PDF is uploaded once and reused across runs, and the
+prompt/PDF/template are prompt-cached so runs 2..N are cheap.
+
+```bash
+export ANTHROPIC_API_KEY=sk-...
+uv run slide-tagger bench                                  # nigeria + digital-auto, 3 runs each, Opus
+uv run slide-tagger bench --runs 5 --model claude-sonnet-4-6   # more runs, cheaper model
+uv run slide-tagger bench --deck nigeria-economic-outlook-october-2023-v1  # one deck
+```
+
+Each run is structurally merged + enum-sanitized + scored; raw merged outputs land
+in `data/tagged/bench/<deck>/run_N.json`. The system prompt is the `## The Prompt`
+body of [docs/deck_tagging_prompt.md](docs/deck_tagging_prompt.md), so it always
+tracks the current prompt version.
+
+The scorecard gives overall **semantic accuracy vs the 85% target**, per-field
+accuracy ranked weakest-first, the enum confusions behind the weak fields (e.g.
+`audience_level: C-suite / board → Senior executives`), a structural-integrity
+check (Pipeline A fields must be untouched), and free-text fields side-by-side for
+manual review. Workflow and rubric: [docs/vlm_prompt_test.md](docs/vlm_prompt_test.md).
+Predictions are matched to hand-labels by **identical filename**.
+
 `tag` / `deck-summary` emit paste-ready `STRUCTURAL DATA` / `DECK SUMMARY`
 grounding blocks for inspecting Pipeline A's output. The enrichment workflow
 proper runs off `template` → enrich → `validate` (below).
@@ -104,8 +151,8 @@ The enrichment schema has three levels (full field list in
   `placeholder_compliance`, `embedded_data_present`, `zones`, `slot_types_present`,
   `reusability_score_qualitative`, `tier_match_difficulty`.
 - **Element-level:** the `inferred_rules` block (deck-wide style aggregates) plus
-  the deck-wise `design_system.grid` and the `type` of each detected
-  `design_system.recurring_elements[]`.
+  the deck-wise `design_system.grid` and the `type` (and text `value`, where it has
+  one) of each `design_system.recurring_elements[]`.
 
 A `provenance` block records who tagged it. `validate` checks enum values and
 reports completeness.
@@ -127,13 +174,21 @@ uv run pytest -q
 - *Design system:* modal title/body text styles (font, size, weight, color,
   alignment), color palette (primary/accent/neutrals), default alignment, and
   recurring-element detection via perceptual hash (pHash). `grid` and each
-  recurring element's `type` are left for hand-labeling.
+  recurring element's `type` (and text `value`) are left for hand-labeling.
 - *Rendering:* `.pptx` → per-slide PNGs (full + thumbnail) via LibreOffice +
   poppler, written to `data/renders/<deck>/` and recorded as
   `render_path`/`thumbnail_path` in the tagged JSON.
+- *Merge guard:* `merge` re-imposes Pipeline A's structural fields from the template
+  onto a VLM output, so the enrichment pass can't corrupt deterministic fields.
+- *Eval harness:* `score` / `eval` compare VLM-enriched output against hand-labels
+  field-by-field (enum exact match, enum-list set-F1), with a structural-integrity
+  check and per-enum confusions — the signal for prompt optimization.
+- *API benchmark:* `bench` runs the enrichment prompt via the Claude API N times per
+  deck and reports mean ± std accuracy, averaging out run-to-run variance (the merge
+  guard + enum sanitation are applied automatically). Needs `ANTHROPIC_API_KEY`.
 - Pydantic schema (incl. the locked enrichment vocabulary — deck-, slide-, and
   element-level enums), CLI (`tag`, `deck-summary`, `template`, `validate`,
-  `render`), contact-sheet generator, sample deck, and tests.
+  `render`, `merge`, `score`, `eval`, `bench`), contact-sheet generator, sample deck, and tests.
 
 **Deferred / known limits:**
 - **PDF parsing** — `.pptx` only for now (init.md open question).
