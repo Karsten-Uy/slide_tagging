@@ -36,9 +36,31 @@ uv run slide-tagger tag data/source/sample_deck.pptx --json      # full JSON
 uv run slide-tagger deck-summary data/source/sample_deck.pptx
 uv run slide-tagger deck-summary data/source/sample_deck.pptx --json
 
+# Render each slide to PNG (full + thumbnail) for the VLM pass and the MCP corpus:
+uv run slide-tagger render data/source/sample_deck.pptx              # -> data/renders/<deck>/
+uv run slide-tagger render data/source/sample_deck.pptx --slide 2   # just one slide
+
 # Contact sheet to help the enrichment pass judge deck-wide patterns:
-uv run python scripts/make_contact_sheet.py renders/<deck>/ -o contact_sheet.png
+uv run python scripts/make_contact_sheet.py data/renders/<deck>/ -o contact_sheet.png
 ```
+
+### Rendering (slide → PNG)
+
+`render` turns a `.pptx` into per-slide PNGs — a full render (`slide_NNN.png`, native
+aspect, default 150 DPI) and a thumbnail (`thumb/slide_NNN.png`, default 512px long
+edge) — under `data/renders/<deck-slug>/`. These feed both the VLM enrichment pass
+(Pipeline B) and the `mcp-slide-corpus` server (CLIP embeddings + agent previews).
+The `template` command records each slide's `render_path`/`thumbnail_path` so the
+tagged JSON points at them.
+
+Rendering needs two system dependencies:
+
+- **LibreOffice** (`.pptx` → PDF). Auto-discovered on PATH, at the Windows default
+  install path, or via `LIBREOFFICE_PATH`.
+- **poppler** (`pdftoppm`, PDF → PNG). On PATH, or pass `--poppler-path <bin>` /
+  set `POPPLER_PATH` (handy on Windows). Install: `apt-get install poppler-utils`
+  (Linux) or unzip the [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases)
+  release and point `--poppler-path` at its `Library\bin`.
 
 `tag` / `deck-summary` emit paste-ready `STRUCTURAL DATA` / `DECK SUMMARY`
 grounding blocks for inspecting Pipeline A's output. The enrichment workflow
@@ -106,13 +128,15 @@ uv run pytest -q
   alignment), color palette (primary/accent/neutrals), default alignment, and
   recurring-element detection via perceptual hash (pHash). `grid` and each
   recurring element's `type` are left for hand-labeling.
+- *Rendering:* `.pptx` → per-slide PNGs (full + thumbnail) via LibreOffice +
+  poppler, written to `data/renders/<deck>/` and recorded as
+  `render_path`/`thumbnail_path` in the tagged JSON.
 - Pydantic schema (incl. the locked enrichment vocabulary — deck-, slide-, and
-  element-level enums), CLI (`tag`, `deck-summary`, `template`, `validate`),
-  contact-sheet generator, sample deck, and tests.
+  element-level enums), CLI (`tag`, `deck-summary`, `template`, `validate`,
+  `render`), contact-sheet generator, sample deck, and tests.
 
 **Deferred / known limits:**
 - **PDF parsing** — `.pptx` only for now (init.md open question).
-- **Slide rendering** to PNG — needs LibreOffice (not installed); use screenshots.
 - **Recurring elements on the slide master/layout aren't detected** — only
   slide-level images are hashed. **Vector images (EMF/WMF) are skipped** — PIL
   can't rasterize them to hash. (Both common in polished corporate decks.)

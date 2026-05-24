@@ -13,7 +13,11 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "Bash(python -c \"import json; d=json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('valid JSON,', len\\(d['permissions']['allow']\\), 'allow rules'\\)\")",
-      "Bash(uv add *)"
+      "Bash(uv add *)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(npx --version)",
+      "Read(//c/Users/karst/Documents/Cortyze/**)"
     ]
   }
 }

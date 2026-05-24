@@ -68,6 +68,10 @@ class SlideTag(SlideStructural):
     slot_types_present: list[SlotType] = Field(default_factory=list)
     reusability_score_qualitative: ReusabilityScore | None = None
     tier_match_difficulty: TierMatchDifficulty | None = None
+    # Render artifacts (filled by the `template` command / render step; paths are
+    # relative to the render root, resolved downstream via THUMBNAIL_BASE_PATH).
+    render_path: str | None = None
+    thumbnail_path: str | None = None
 
 
 # --- Element-level inferred style rules. Aggregated observations across the

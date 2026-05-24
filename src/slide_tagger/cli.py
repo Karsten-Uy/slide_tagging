@@ -6,6 +6,7 @@
     slide-tagger deck-summary deck.pptx     # paste-ready DECK SUMMARY block
     slide-tagger template deck.pptx         # blank hand-tagging template (JSON)
     slide-tagger validate labels.json       # validate a hand-tagged file
+    slide-tagger render deck.pptx           # per-slide PNGs (full + thumbnail)
 
 `tag`/`deck-summary` emit paste-ready `STRUCTURAL DATA` / `DECK SUMMARY` grounding
 blocks for inspecting Pipeline A's output. `template`/`validate` drive the
@@ -23,6 +24,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from slide_tagger.extractors.render.paths import deck_slug, render_rel_path, thumb_rel_path
 from slide_tagger.extractors.structural.aggregator import summarize_deck
 from slide_tagger.extractors.structural.pptx_parser import parse_pptx
 from slide_tagger.schema.enums import DensityBucket
@@ -152,13 +154,62 @@ def _load_structural(src: Path) -> DeckStructural | int:
     return parse_pptx(resolved)
 
 
+def _attach_render_paths(tag: DeckTag) -> None:
+    """Fill each slide's render_path/thumbnail_path from the deck slug + index, so
+    the template already references where renders live (whether or not they exist
+    yet). The downstream MCP server resolves them via THUMBNAIL_BASE_PATH."""
+    slug = deck_slug(tag.source_filename)
+    for slide in tag.slides:
+        slide.render_path = render_rel_path(slug, slide.index)
+        slide.thumbnail_path = thumb_rel_path(slug, slide.index)
+
+
 def _cmd_template(args: argparse.Namespace) -> int:
     deck = _load_structural(args.source)
     if isinstance(deck, int):
         return deck
     tag = blank_tag(deck)
+    _attach_render_paths(tag)
     out = {"_legend": legend(), **tag.model_dump(mode="json")}
     print(json.dumps(out, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _cmd_render(args: argparse.Namespace) -> int:
+    resolved = _resolve_deck(args.deck)
+    if isinstance(resolved, int):
+        return resolved
+
+    # Imported lazily so `tag`/`template` work even if pdf2image isn't installed.
+    from slide_tagger.extractors.render import render_deck
+    from slide_tagger.extractors.render.soffice import LibreOfficeNotFound, RenderError
+
+    try:
+        result = render_deck(
+            resolved,
+            out_root=args.out,
+            dpi=args.dpi,
+            thumb_px=args.thumb,
+            only_index=args.slide,
+            poppler_path=args.poppler_path,
+        )
+    except LibreOfficeNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    except RenderError as exc:
+        print(f"Render failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # pdf2image / poppler failures surface here
+        print(
+            f"Render failed (is poppler installed? pass --poppler-path to its bin/): {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+    dest = Path(args.out) / result.deck_slug
+    print(f"# rendered {len(result.slides)} slide(s) from {Path(resolved).name} -> {dest}")
+    for slide in result.slides:
+        print(f"  slide {slide.index}: {slide.render_path}  ·  {slide.thumbnail_path}")
     return 0
 
 
@@ -307,6 +358,35 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_val.add_argument("labels", type=Path, help="Path to a hand-tagged .json file")
     p_val.set_defaults(func=_cmd_validate)
+
+    p_render = sub.add_parser(
+        "render",
+        help="Render a .pptx to per-slide PNGs (full + thumbnail) via LibreOffice.",
+    )
+    p_render.add_argument("deck", type=Path, help="Path to a .pptx file")
+    p_render.add_argument(
+        "--out",
+        type=Path,
+        default=Path("data/renders"),
+        help="Render output root (default: data/renders)",
+    )
+    p_render.add_argument(
+        "--dpi", type=int, default=150, help="Full-render DPI (default: 150)"
+    )
+    p_render.add_argument(
+        "--thumb", type=int, default=512, help="Thumbnail long-edge px (default: 512)"
+    )
+    p_render.add_argument(
+        "--slide", type=int, default=None, help="Only this slide index (0-based)"
+    )
+    p_render.add_argument(
+        "--poppler-path",
+        dest="poppler_path",
+        type=str,
+        default=None,
+        help="Path to poppler's bin/ if pdftoppm is not on PATH (common on Windows)",
+    )
+    p_render.set_defaults(func=_cmd_render)
 
     args = parser.parse_args(argv)
     return args.func(args)
