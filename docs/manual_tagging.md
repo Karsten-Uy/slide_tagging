@@ -41,8 +41,9 @@ There is no separate GUI — you tag by **editing the generated JSON template in
 
 1. The JSON template (one object per slide under `slides`, plus deck-level fields at the top,
    `inferred_rules`, and `provenance`).
-2. The slide images. Rendering isn't built yet, so open the source `.pptx` in
-   PowerPoint / LibreOffice / Google Slides, or screenshot slides. **Slide `index` is 0-based** —
+2. The slide images. Either render them with `slide-tagger render <deck>.pptx`
+   (PNGs under `data/renders/<deck-slug>/`) or just open the source `.pptx` in
+   PowerPoint / LibreOffice / Google Slides. **Slide `index` is 0-based** —
    `index: 0` is the first slide.
 
 Keep finished labels in `reference_data/hand_labels/<deck_id>.json` (tracked in git — this is

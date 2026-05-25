@@ -3,7 +3,7 @@
 **Date:** 2026-05-23
 **Status:** approved
 **Scope:** Add a deterministic `.pptx` → PNG render step to `slide_tagging`, and link
-the rendered images back to the tagged JSON so the `mcp-slide-corpus` server can
+the rendered images back to the tagged JSON so the `mcp_slide_tagging` server can
 resolve them.
 
 ## Goal & pipeline placement
@@ -13,7 +13,7 @@ Pipeline A reads the file's XML; this rasterizes pixels). It converts a `.pptx`
 into per-slide PNGs that two downstream consumers reuse:
 
 - **Pipeline B** (VLM enrichment) — needs the rendered image as model input.
-- **`mcp-slide-corpus`** — CLIP visual embeddings + visual examples returned to
+- **`mcp_slide_tagging`** — CLIP visual embeddings + visual examples returned to
   the generating agent.
 
 Render once, two consumers.
@@ -101,7 +101,7 @@ deterministically from the deck slug + each slide's `index`. The paths are fille
 whether or not the PNGs exist yet — they describe where renders live. No in-place
 JSON rewriting.
 
-The `mcp-slide-corpus` server resolves them with `THUMBNAIL_BASE_PATH +
+The `mcp_slide_tagging` server resolves them with `THUMBNAIL_BASE_PATH +
 thumbnail_path`, exactly as its config already expects.
 
 ## Configuration

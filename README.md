@@ -49,7 +49,7 @@ uv run python scripts/make_contact_sheet.py data/renders/<deck>/ -o contact_shee
 `render` turns a `.pptx` into per-slide PNGs — a full render (`slide_NNN.png`, native
 aspect, default 150 DPI) and a thumbnail (`thumb/slide_NNN.png`, default 512px long
 edge) — under `data/renders/<deck-slug>/`. These feed both the VLM enrichment pass
-(Pipeline B) and the `mcp-slide-corpus` server (CLIP embeddings + agent previews).
+(Pipeline B) and the `mcp_slide_tagging` server (CLIP embeddings + agent previews).
 The `template` command records each slide's `render_path`/`thumbnail_path` so the
 tagged JSON points at them.
 
@@ -61,6 +61,35 @@ Rendering needs two system dependencies:
   set `POPPLER_PATH` (handy on Windows). Install: `apt-get install poppler-utils`
   (Linux) or unzip the [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases)
   release and point `--poppler-path` at its `Library\bin`.
+
+### Extracting logos / branding images (`extract-assets`)
+
+The MCP server can serve a deck's logos so a generated deck carries real branding.
+`extract-assets` finds **recurring branding images** — scanning slides **plus the
+slide masters/layouts and recursing into group shapes** — at a logo-tuned recurrence
+threshold (default 25% of slides, lower than the design-system pHash threshold),
+saves a PNG per group, and records `image_path`/`source`/auto-`type` on
+`design_system.recurring_elements`.
+
+```bash
+# Extract to reference_data/assets/<deck-slug>/ and print the new recurring_elements:
+uv run slide-tagger extract-assets data/source/<deck>.pptx
+
+# Lower the recurrence bar, write a captioned grid to eyeball the catches, and merge
+# the image elements straight into a hand-label (deduped by pHash):
+uv run slide-tagger extract-assets data/source/<deck>.pptx --fraction 0.2 \
+    --contact-sheet --into reference_data/hand_labels/<deck>.tagged.json
+```
+
+Each extracted element gets `type` (auto-guessed: `logo`/`footer`/…), `value`
+(text, hand-filled), `phash`, `position`, `appears_on_slides`, `image_path`
+(`assets/<slug>/recurring_NN.png`), and `source` (`slide`/`master`/`layout`).
+**Vector/grouped logos** (EMF/WMF, no raster blob — common in polished corporate
+decks) can't be rasterized; those decks correctly yield **no** asset and rely on
+the footer wordmark text downstream (manual drop-in covered in
+[`docs/manual_tagging.md`](docs/manual_tagging.md)). Curate so only true branding
+keeps a `type:"logo"` — see
+[Manual tagging](#manual-tagging-hand-labeling-reference-decks) below.
 
 ### Scoring the enrichment prompt (Pipeline B)
 
@@ -173,8 +202,17 @@ uv run pytest -q
   prevalence, dominant title position, average word count.
 - *Design system:* modal title/body text styles (font, size, weight, color,
   alignment), color palette (primary/accent/neutrals), default alignment, and
-  recurring-element detection via perceptual hash (pHash). `grid` and each
-  recurring element's `type` (and text `value`) are left for hand-labeling.
+  recurring-element detection via perceptual hash (pHash). **Font names are
+  normalized to installable families** (`"Arial MT"`/`"Arial-BoldMT"` → `"Arial"`)
+  and the title family falls back to the deck's dominant (body) font when the title
+  placeholder carries none, so `run.font.name` matches an installed font downstream
+  instead of silently falling back. `grid` and each recurring element's `type` (and
+  text `value`) are left for hand-labeling.
+- *Logo / branding extraction:* `extract-assets` finds recurring branding images
+  (scanning slides + masters/layouts, recursing groups), saves a PNG per group, and
+  records `image_path`/`source`/auto-`type` on `recurring_elements` for the MCP
+  server to serve. Vector/grouped logos (no raster blob) fall back to a manual
+  drop-in.
 - *Rendering:* `.pptx` → per-slide PNGs (full + thumbnail) via LibreOffice +
   poppler, written to `data/renders/<deck>/` and recorded as
   `render_path`/`thumbnail_path` in the tagged JSON.
@@ -188,12 +226,14 @@ uv run pytest -q
   guard + enum sanitation are applied automatically). Needs `ANTHROPIC_API_KEY`.
 - Pydantic schema (incl. the locked enrichment vocabulary — deck-, slide-, and
   element-level enums), CLI (`tag`, `deck-summary`, `template`, `validate`,
-  `render`, `merge`, `score`, `eval`, `bench`), contact-sheet generator, sample deck, and tests.
+  `render`, `extract-assets`, `merge`, `score`, `eval`, `bench`), contact-sheet
+  generator, sample deck, and tests.
 
 **Deferred / known limits:**
 - **PDF parsing** — `.pptx` only for now (init.md open question).
-- **Recurring elements on the slide master/layout aren't detected** — only
-  slide-level images are hashed. **Vector images (EMF/WMF) are skipped** — PIL
-  can't rasterize them to hash. (Both common in polished corporate decks.)
+- **Vector images (EMF/WMF) are skipped** — PIL can't rasterize them to hash, so
+  vector/grouped logos yield no extracted asset (manual drop-in instead). Common in
+  polished corporate decks. (Slide *and* master/layout images, incl. those inside
+  group shapes, are now scanned by `extract-assets`.)
 - **`consistency_score`** and **`deviations_from_system`** — not yet computed.
 - **Pipeline B** — the VLM calls themselves (this repo only grounds them).
