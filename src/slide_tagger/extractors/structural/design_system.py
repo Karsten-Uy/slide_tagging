@@ -8,6 +8,7 @@ groups repeated images by perceptual hash. The subjective parts (`grid`, and
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from io import BytesIO
@@ -74,6 +75,24 @@ def _position(shape, slide_w: int, slide_h: int) -> Position | None:
     return _QUADRANTS[row][col]
 
 
+_PS_STYLE = re.compile(r"-(?:Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black|Thin)", re.I)
+_FOUNDRY_TAIL = re.compile(r"\s*(?:MT|PS)$", re.I)  # "Arial MT" / "ArialMT"
+_FOUNDRY_QUAL = re.compile(r"\s+(?:Pro|Std|LT|Com)\b.*$", re.I)  # "Helvetica Neue LT Std"
+
+
+def _normalize_font(name: str | None) -> str | None:
+    """Map a PostScript/foundry font name to its installable family so that
+    `run.font.name = …` matches an installed font downstream (otherwise it silently
+    falls back). 'Arial MT'/'ArialMT'/'Arial-BoldMT' -> 'Arial';
+    'Helvetica Neue LT Std' -> 'Helvetica Neue'. 'Georgia'/'Calibri'/None unchanged."""
+    if not name:
+        return name
+    n = _PS_STYLE.split(name.strip(), maxsplit=1)[0]
+    n = _FOUNDRY_TAIL.sub("", n)
+    n = _FOUNDRY_QUAL.sub("", n)
+    return n.strip() or name.strip()
+
+
 def _size_pt(font) -> float | None:
     try:
         return round(font.size.pt, 1) if font.size is not None else None
@@ -108,7 +127,7 @@ def _text_style(shape) -> TextStyle | None:
     run = para.runs[0] if para.runs else None
     font = run.font if run is not None else para.font
     return TextStyle(
-        font_family=font.name,
+        font_family=_normalize_font(font.name),
         size_pt=_size_pt(font),
         weight=FontWeight.BOLD if font.bold else FontWeight.REGULAR,
         color_hex=_font_hex(font),
@@ -236,9 +255,25 @@ def build_design_system(
     body_styles = [t.style for t in texts if not t.is_title]
     text_colors = [t.style.color_hex for t in texts if t.style.color_hex]
 
+    title_style = _modal_style(title_styles)
+    body_style = _modal_style(body_styles)
+
+    # Title placeholders are an unreliable font source: many decks put titles in
+    # custom text boxes (title font ends up None) and the few that do carry one can
+    # be a decorative outlier (e.g. "Georgia" on 3/39 runs while the deck is Arial).
+    # So set the title *family* to the deck's dominant font (modal of body, then of
+    # all text); keep the title's own size/weight/color/alignment. Body's modal is
+    # reliable (lots of text) and only falls back if absent.
+    dominant_font = body_style.font_family or _modal([t.style.font_family for t in texts])
+    if dominant_font is not None:
+        if title_style.font_family != dominant_font:
+            title_style = title_style.model_copy(update={"font_family": dominant_font})
+        if body_style.font_family is None:
+            body_style = body_style.model_copy(update={"font_family": dominant_font})
+
     return DesignSystem(
-        title_style=_modal_style(title_styles),
-        body_style=_modal_style(body_styles),
+        title_style=title_style,
+        body_style=body_style,
         color_palette=_palette(text_colors + fills),
         default_text_alignment=_modal([t.style.alignment for t in texts]),
         grid=None,

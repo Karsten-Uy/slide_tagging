@@ -7,6 +7,7 @@
     slide-tagger template deck.pptx         # blank hand-tagging template (JSON)
     slide-tagger validate labels.json       # validate a hand-tagged file
     slide-tagger render deck.pptx           # per-slide PNGs (full + thumbnail)
+    slide-tagger extract-assets deck.pptx   # extract recurring logos/branding images -> PNGs
     slide-tagger merge vlm.json input.json  # re-impose Pipeline A fields on VLM output
     slide-tagger score pred.json truth.json # score enriched output vs hand-label
     slide-tagger eval                       # score data/tagged/* vs hand_labels/*
@@ -221,6 +222,114 @@ def _cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _write_contact_sheet(out_dir: Path, elements: list[dict]) -> None:
+    """Write a captioned grid of the extracted images to help hand-labeling."""
+    from PIL import Image, ImageDraw
+
+    tiles = []
+    for e in elements:
+        p = out_dir / Path(e["image_path"]).name
+        try:
+            tiles.append((e, Image.open(p).convert("RGB")))
+        except Exception:
+            continue
+    if not tiles:
+        return
+    cw, cap, cols = 240, 48, 3
+    rows = (len(tiles) + cols - 1) // cols
+    ch = cw + cap
+    sheet = Image.new("RGB", (cw * cols, ch * rows), "white")
+    draw = ImageDraw.Draw(sheet)
+    for n, (e, im) in enumerate(tiles):
+        im.thumbnail((cw - 10, cw - 10))
+        r, c = divmod(n, cols)
+        x, y = c * cw, r * ch
+        sheet.paste(im, (x + 5, y + 5))
+        cap_txt = f"#{n} {e.get('type') or '?'} ({e.get('source')}, {len(e.get('appears_on_slides') or [])} sl)"
+        draw.text((x + 5, y + cw - 8), cap_txt[:42], fill="#222")
+    sheet.save(out_dir / "_contactsheet.png")
+
+
+def _merge_recurring_into(path: Path, elements: list[dict]) -> int:
+    """Append image-based recurring elements into a hand-label JSON (dedupe by phash)."""
+    if not path.exists():
+        print(f"--into file not found: {path}", file=sys.stderr)
+        return 2
+    data = json.loads(path.read_text(encoding="utf-8"))
+    existing = data.setdefault("design_system", {}).setdefault("recurring_elements", [])
+    have = {r.get("phash") for r in existing if r.get("phash")}
+    added = 0
+    for e in elements:
+        if e.get("phash") and e["phash"] in have:
+            continue
+        existing.append(e)
+        added += 1
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"# merged {added} image element(s) into {path.name}", file=sys.stderr)
+    return 0
+
+
+def _cmd_extract_assets(args: argparse.Namespace) -> int:
+    from io import BytesIO
+
+    from PIL import Image
+    from pptx import Presentation
+
+    from slide_tagger.extractors.structural.recurring_images import extract_recurring_images
+
+    resolved = _resolve_deck(args.deck)
+    if isinstance(resolved, int):
+        return resolved
+
+    prs = Presentation(str(resolved))
+    slug = deck_slug(Path(resolved).name)
+    groups = extract_recurring_images(prs, fraction=args.fraction)
+
+    out_dir = args.out / slug
+    out_dir.mkdir(parents=True, exist_ok=True)
+    elements: list[dict] = []
+    for n, g in enumerate(groups):
+        fname = f"recurring_{n:02d}.png"
+        try:
+            with Image.open(BytesIO(g.blob)) as im:
+                im.convert("RGB").save(out_dir / fname)
+        except Exception as exc:  # vector/unsupported → manual fallback
+            print(f"# skip group {n}: cannot rasterize ({exc})", file=sys.stderr)
+            continue
+        rel = f"assets/{slug}/{fname}"
+        elements.append(
+            {
+                "type": g.type.value if g.type else None,
+                "value": None,
+                "phash": g.phash,
+                "position": g.position.value if g.position else None,
+                "appears_on_slides": g.slide_indices,
+                "image_path": rel,
+                "source": g.source,
+            }
+        )
+        print(
+            f"# saved {rel}  type={g.type.value if g.type else 'None'}  "
+            f"source={g.source}  slides={len(g.slide_indices)}",
+            file=sys.stderr,
+        )
+
+    if not elements:
+        print(
+            f"# {slug}: no raster branding images extracted — lower --fraction or use "
+            "the manual fallback (docs/manual_tagging.md).",
+            file=sys.stderr,
+        )
+    if args.contact_sheet and elements:
+        _write_contact_sheet(out_dir, elements)
+        print(f"# wrote {out_dir / '_contactsheet.png'}", file=sys.stderr)
+
+    print(json.dumps(elements, indent=2, ensure_ascii=False))
+    if args.into is not None and elements:
+        return _merge_recurring_into(args.into, elements)
+    return 0
+
+
 def _is_filled(value: object) -> bool:
     """A field counts as filled if it's a non-empty value (str/enum/list)."""
     if value is None:
@@ -402,6 +511,7 @@ def _build_template(pptx: Path) -> dict:
 
 def _cmd_bench(args: argparse.Namespace) -> int:
     import statistics
+    import time
     from collections import defaultdict
 
     try:
@@ -416,7 +526,9 @@ def _cmd_bench(args: argparse.Namespace) -> int:
     system = prompt_body(args.prompt)
 
     try:
-        client = anthropic.Anthropic()
+        # Hard per-request timeout so a network hang errors out instead of
+        # stalling forever (the first uncached call is the slow one).
+        client = anthropic.Anthropic(timeout=float(args.timeout))
     except Exception as exc:  # missing/invalid key surfaces here
         print(f"Could not init Anthropic client (is ANTHROPIC_API_KEY set?): {exc}", file=sys.stderr)
         return 2
@@ -438,23 +550,32 @@ def _cmd_bench(args: argparse.Namespace) -> int:
         template = _build_template(pptx)
         template_core = {k: v for k, v in template.items() if k != "_legend"}
 
-        print(f"# {stem}: uploading PDF…", file=sys.stderr)
+        print(f"# {stem}: uploading PDF ({pdf.stat().st_size // 1024} KB)…", file=sys.stderr)
         try:
             file_id = upload_pdf(client, pdf)
         except Exception as exc:  # auth / network / API errors surface here
             print(f"# {stem}: upload failed ({exc}). Is ANTHROPIC_API_KEY set and valid?", file=sys.stderr)
             return 2
+        print(f"# {stem}: uploaded (file_id={file_id}).", file=sys.stderr)
         (args.out / stem).mkdir(parents=True, exist_ok=True)
         scores: list[float] = []
         for k in range(args.runs):
+            print(
+                f"# {stem}: run {k + 1}/{args.runs} — calling {args.model} "
+                f"(effort={args.effort}); '·'=thinking, '.'=output…",
+                file=sys.stderr,
+            )
+            t0 = time.perf_counter()
             try:
                 enriched = enrich_once(
                     client, system=system, template=template,
                     file_id=file_id, model=args.model, effort=args.effort,
+                    verbose=not args.quiet,
                 )
             except Exception as exc:
-                print(f"# {stem} run {k + 1}/{args.runs} FAILED: {exc}", file=sys.stderr)
+                print(f"# {stem} run {k + 1}/{args.runs} FAILED after {time.perf_counter() - t0:.0f}s: {exc}", file=sys.stderr)
                 continue
+            elapsed = time.perf_counter() - t0
             enriched.pop("_legend", None)
             merged = merge_structural(enriched, template_core)
             try:
@@ -471,7 +592,7 @@ def _cmd_bench(args: argparse.Namespace) -> int:
             (args.out / stem / f"run_{k + 1}.json").write_text(
                 json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8"
             )
-            print(f"# {stem} run {k + 1}/{args.runs}: {acc:.0%}", file=sys.stderr)
+            print(f"# {stem} run {k + 1}/{args.runs}: {acc:.0%}  ({elapsed:.0f}s)", file=sys.stderr)
         try:
             client.beta.files.delete(file_id)
         except Exception:
@@ -495,10 +616,53 @@ def _cmd_bench(args: argparse.Namespace) -> int:
     if deck_means:
         print(f"  CORPUS (mean of deck means): {statistics.mean(deck_means):.1%}")
 
+    field_means = {p: statistics.mean(v) for p, v in per_field.items()}
     print("\nPer-field mean accuracy across all runs (weakest first):")
-    rows = sorted(((p, statistics.mean(v), len(v)) for p, v in per_field.items()), key=lambda r: r[1])
-    for path, mean, n in rows:
-        print(f"  {path:48} {mean:.0%}  (n_runs={n})")
+    for path, mean in sorted(field_means.items(), key=lambda kv: kv[1]):
+        print(f"  {path:48} {mean:.0%}  (n_runs={len(per_field[path])})")
+
+    # --- persist: optional JSON + an always-on results-log row ---
+    import datetime
+
+    corpus = statistics.mean(deck_means)
+    deck_summary = {
+        stem: {
+            "mean": statistics.mean(s),
+            "std": statistics.pstdev(s) if len(s) > 1 else 0.0,
+            "runs": s,
+        }
+        for stem, s in deck_scores.items()
+    }
+    stamp = datetime.datetime.now().isoformat(timespec="seconds")
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(
+            json.dumps(
+                {"label": args.label, "timestamp": stamp, "model": args.model,
+                 "effort": args.effort, "runs": args.runs, "corpus": corpus,
+                 "decks": deck_summary, "per_field": field_means},
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"\n# wrote JSON report -> {args.json}", file=sys.stderr)
+
+    weakest = "; ".join(f"{p} {m:.0%}" for p, m in sorted(field_means.items(), key=lambda kv: kv[1])[:3])
+    decks_cell = "; ".join(
+        f"{stem.split('-')[0]} {d['mean']:.1%}±{d['std']:.1%}" for stem, d in deck_summary.items()
+    )
+    row = f"| {args.label or '—'} | {stamp[:10]} | {args.model} | {args.effort} | {args.runs} | {decks_cell} | {corpus:.1%} | {weakest} |\n"
+    if not args.log.exists():
+        args.log.parent.mkdir(parents=True, exist_ok=True)
+        args.log.write_text(
+            "# Bench results log\n\n"
+            "| label | date | model | effort | runs | per-deck mean±std | corpus | weakest 3 fields |\n"
+            "|---|---|---|---|---|---|---|---|\n",
+            encoding="utf-8",
+        )
+    with open(args.log, "a", encoding="utf-8") as f:
+        f.write(row)
+    print(f"# appended results row -> {args.log}", file=sys.stderr)
     return 0
 
 
@@ -566,6 +730,15 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+
+    # Load a local .env (e.g. ANTHROPIC_API_KEY for `bench`) if present. Real env
+    # vars win over .env; missing python-dotenv is non-fatal.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
 
     parser = argparse.ArgumentParser(
         prog="slide-tagger",
@@ -640,6 +813,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to poppler's bin/ if pdftoppm is not on PATH (common on Windows)",
     )
     p_render.set_defaults(func=_cmd_render)
+
+    p_assets = sub.add_parser(
+        "extract-assets",
+        help="Extract recurring branding images (logos/watermarks) to PNGs and "
+        "recurring_elements (scans slides + masters/layouts, recurses groups).",
+    )
+    p_assets.add_argument("deck", type=Path, help="Path to a .pptx file")
+    p_assets.add_argument(
+        "--out", type=Path, default=Path("reference_data/assets"),
+        help="Asset output root (default: reference_data/assets)",
+    )
+    p_assets.add_argument(
+        "--fraction", type=float, default=0.25,
+        help="Min slide-coverage to treat a slide image as recurring (default: 0.25)",
+    )
+    p_assets.add_argument(
+        "--into", type=Path, default=None,
+        help="Merge the extracted elements into this hand-label JSON (dedupe by phash)",
+    )
+    p_assets.add_argument(
+        "--contact-sheet", dest="contact_sheet", action="store_true",
+        help="Also write a captioned grid (_contactsheet.png) of the extracted images",
+    )
+    p_assets.set_defaults(func=_cmd_extract_assets)
 
     p_merge = sub.add_parser(
         "merge",
@@ -732,6 +929,26 @@ def main(argv: list[str] | None = None) -> int:
     p_bench.add_argument(
         "--out", type=Path, default=Path("data/tagged/bench"),
         help="Where to write each run's merged JSON (default: data/tagged/bench)",
+    )
+    p_bench.add_argument(
+        "--timeout", type=float, default=900.0,
+        help="Per-request timeout in seconds (default: 900); a hang errors out instead of stalling",
+    )
+    p_bench.add_argument(
+        "--quiet", action="store_true",
+        help="Suppress the per-chunk streaming heartbeat",
+    )
+    p_bench.add_argument(
+        "--label", default=None,
+        help="Short label for this sweep (e.g. 'v3-placeholder') recorded in the results log",
+    )
+    p_bench.add_argument(
+        "--json", type=Path, default=None,
+        help="Also write a machine-readable JSON report to this path",
+    )
+    p_bench.add_argument(
+        "--log", type=Path, default=Path("logs/bench_results.md"),
+        help="Append a results row here (auto-created; default: logs/bench_results.md)",
     )
     p_bench.set_defaults(func=_cmd_bench)
 

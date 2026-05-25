@@ -161,6 +161,21 @@ The `*_observed` arrays (fonts, weights, hexes), `size_pt_range`/`size_pt_most_c
 | `design_system.grid` | 12-column · 6-column · free | The deck's underlying column grid (eyeball it). |
 | `design_system.recurring_elements[].type` | logo · page_number · footer · watermark | What each repeating element is. |
 | `design_system.recurring_elements[].value` | Free text (omit for `page_number`) | The element's literal content, e.g. the footer text "Strategy&". |
+| `design_system.recurring_elements[].image_path` | auto (leave alone) | Set by `extract-assets` — relative path to the extracted PNG. |
+| `design_system.recurring_elements[].source` | auto (leave alone) | Set by `extract-assets` — `slide` / `layout` / `master` / `manual`. |
+
+### Extracting logo / branding images
+
+`slide-tagger extract-assets <deck>.pptx --into <labels>.json` finds recurring images
+(logos, watermarks, recurring graphics), saves a PNG per element under
+`reference_data/assets/<deck-slug>/`, and appends them to `recurring_elements` with
+`image_path`, `source`, and a best-guess `type` (it auto-labels obvious corner logos;
+confirm/fix `type` like any other recurring element, and set `value` to the firm name).
+Add `--contact-sheet` to also write a captioned grid of the extracted images to label from.
+
+**Vector / grouped logos** (no raster image, e.g. a brand mark built from shapes) can't be
+auto-extracted. Drop a `logo.png` into `reference_data/assets/<deck-slug>/` by hand and add a
+recurring element: `{"type": "logo", "source": "manual", "image_path": "assets/<deck-slug>/logo.png", "value": "<firm>"}`.
 
 ## Tips
 

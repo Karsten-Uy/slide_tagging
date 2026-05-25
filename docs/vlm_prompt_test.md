@@ -76,7 +76,7 @@ edit, you can't tell a good change from luck.
 **N times per deck** and reports **mean ± std**.
 
 ```bash
-export ANTHROPIC_API_KEY=sk-...
+cp .env.example .env         # put your ANTHROPIC_API_KEY in .env (gitignored, auto-loaded)
 uv run slide-tagger bench --runs 5            # nigeria + digital-auto, Opus
 uv run slide-tagger bench --runs 5 --model claude-sonnet-4-6   # cheaper
 ```
@@ -92,6 +92,51 @@ uv run slide-tagger bench --runs 5 --model claude-sonnet-4-6   # cheaper
 - Decks come from `reference_data/hand_labels/<stem>.tagged.json` paired with
   `data/source/<source-stem>.{pptx,pdf}` (only nigeria is fully clean; see the note in the
   manual flow about digital-auto's labeler-authored structural fields).
+
+## Refining the prompt (the v-by-v loop)
+
+The enrichment prompt lives in [deck_tagging_prompt.md](deck_tagging_prompt.md) under `## The Prompt`.
+`bench` reads that section live as the system prompt, so **you just edit the markdown and re-run —
+no regeneration step.** Two good places to put a fix: the inline definition in the schema block (the
+field's `"… | … | …"` string, read right next to the field) or a numbered rule under *Tagging
+principles* (for emphasis / cross-field guidance). Don't add new enum **values** casually —
+`schema/enums.py` is the locked vocabulary.
+
+**The loop:**
+
+1. **Baseline.** `uv run slide-tagger bench --runs 3 --model claude-sonnet-4-6 --effort medium --label v2`
+   (cheap inner-loop config). Note the per-deck `mean ± std` and the per-field table. The **std is your
+   noise floor**: an edit is real only if a field's mean moves by more than ~the std.
+2. **Diagnose each weak field by *type*** (use the per-field table + the confusions from `score`):
+   - **Bias / calibration** — one dominant, single-direction confusion (e.g. `Bespoke→Reusable`):
+     add an explicit default / anti-bias rule.
+   - **Definition gap** — the model doesn't know what a value means: add a one-line definition + one
+     example. For **visual** fields (`dominant_visual_element`, `placeholder_compliance`), **render and
+     look first** (`pdftoppm`/poppler is installed) — write the rule to match what the slides actually
+     show, don't guess.
+   - **Grounding gap** — the model contradicts Pipeline A (e.g. invents a `chart_type` when
+     `has_chart` is false): strengthen "use the STRUCTURAL DATA verbatim."
+   - **Label disagreement** — the hand-label is debatable (e.g. deck `audience_level`:
+     `External / public` vs `C-suite / board` for a *published* report). **Don't touch the prompt** —
+     fix or accept the label. Audit a slide before assuming the model is wrong.
+   - **Scoring artifact** — `slot_types_present` "exact" is all-or-nothing (judge it by F1). Not a
+     prompt problem.
+3. **One lever per iteration.** Edit one field's guidance (or a batch of *independent* fields — never two
+     competing edits on the same field). Re-run `bench` with a new `--label`.
+4. **Keep or revert by the numbers.** Keep the edit only if the target field's mean rose by more than
+     the std **and** no other field regressed (check the *whole* table — fixes can have side effects).
+     Make **generalizable** edits (definitions, rules), never deck-specific patches, and confirm the
+     change helps digital-auto *without* tanking nigeria.
+5. **Log it.** Every `bench` run appends a row to `logs/bench_results.md`; the canonical narrative goes
+     in the [iteration log](#prompt-iteration-log) above.
+6. **Confirm the winner once on Opus.** The inner loop runs on Sonnet/medium for cost; do a single
+     `--runs 5 --model claude-opus-4-7 --effort high` sweep before declaring a version done. Pin one
+     model across any two runs you compare.
+
+**When to stop:** when the headline plateaus and the remaining misses are label-debatable or artifacts.
+A real part of the current 74%→85% gap is label noise (deck-level `audience_level` / `grid` /
+`deliverable_format`, all n=2 and judgment calls) — chasing those with prompt edits fits noise rather
+than improving the model.
 
 ## Schema being filled
 
@@ -140,7 +185,9 @@ Paste the `slide-tagger eval` overall semantic accuracy and the 2–3 weakest fi
 |---|---|---|---|---|---|
 | v0 | 2026-05-24 | initial prompt (deck_tagging_prompt.md); nigeria only, Sonnet | 69% (1 deck) | placeholder_compliance 41% (Bespoke→Reusable ×16); reusability 38% (Low→Medium ×16); embedded_data_present 48% | baseline. Structural-integrity diffs traced to hand-label apostrophe/title_style normalization, not the VLM. enum-list fields look weak in the headline but F1 is 86–91% (all-or-nothing artifact). |
 | v1 | 2026-05-24 | placeholder/reusability calibration + geography "(specify)" verbatim note | **nigeria 96% / digital-auto 63%** | digital-auto: slide_purpose 48% (Data presentation→Finding ×15), audience_level_slide 60% (→Same as deck ×15), placeholder 60% (Bespoke→Reusable ×15), dominant_visual 42% | **Does NOT generalize** — nigeria's 96% was optimistic/overfit. The Bespoke→Reusable and Low→Medium confusions v1 "fixed" on nigeria reappear on digital-auto, so the calibration wasn't robust. New failure mode: slide_position_role given slide_purpose-vocab values on 4 slides (4 nulled to score). Caveat: digital-auto is a noisier reference (labeler-authored titles; pptx grounding ≠ PDF) — part of the gap may be label/convention noise, not pure prompt. |
-| v2 | 2026-05-24 | slide_purpose Finding-vs-Data-presentation rule; audience_level_slide default "Same as deck"; slide_position_role vocab guard. (Audited digital-auto: the Data presentation→Finding ×15 and →Same as deck ×15 confusions are real prompt gaps, confirmed from the slides' action-titles; deck audience_level disagreement left as label noise.) | **nigeria 77% / digital-auto 72%** (corpus 74%) | nigeria untargeted fields cratered: embedded_data 100→48, message_type 97→66, client_industry 100→0, audience_level 100→0 | **Targeted edits worked**: audience_level_slide digital-auto 60→100; slide_purpose digital-auto 48→80; slide_position_role crash fixed (→95%, no invalid enums). **But nigeria fell 96→77 entirely on fields v2 didn't touch → run-to-run variance (~±20) now exceeds edit effect size.** The v1 nigeria 96% was a lucky run. Conclusion: single manual runs are too noisy to drive further fine-tuning; need repeated runs / automation, or call the prompt good and port it. |
+| v2 (manual, 1 run) | 2026-05-24 | slide_purpose Finding-vs-Data-presentation rule; audience_level_slide default "Same as deck"; slide_position_role vocab guard. (Audited digital-auto: the Data presentation→Finding ×15 and →Same as deck ×15 confusions are real prompt gaps; deck audience_level left as label noise.) | nigeria 77% / digital-auto 72% | (single noisy draws) | Targeted edits worked: audience_level_slide digital-auto 60→100; slide_purpose digital-auto 48→80; slide_position_role crash fixed. Single-run field numbers (embedded_data 48, client_industry 0) turned out to be outlier draws — see the bench row. |
+| **v2 (API bench, Opus high, 5×)** | 2026-05-24 | same v2 prompt, measured properly | **nigeria 77.6% ± 1.4% / digital-auto 70.9% ± 1.8%** (corpus 74.2%, $6.99) | message_type 69%, dominant_visual_element 70%, placeholder_compliance 72% (slot_types_present 13% = all-or-nothing artifact). Deck-level audience_level/grid/deliverable 0–50% are n=2 and largely **label-debatable**. | **Run-to-run variance is small (~±1.5%), NOT ±20** — my earlier conclusion was wrong; it came from comparing noisy single manual runs under different (claude.ai) conditions. The v1 nigeria 96% was a non-reproducible outlier. Bench is the reliable measure; **3 runs suffice** (drop runs + use Sonnet/medium for the inner loop to cut the ~$7/sweep cost). |
+| (answer-key fix, not a prompt change) | 2026-05-24 | corrected digital-auto labels: 9 section-header/cover/chart slides were mislabeled `dominant_visual_element: "Pure text"` (audited against rendered slides; the VLM was right) + slide 19 chart_type/embedded. Off-by-one ruled out (main_message aligns at offset 0). See `reference_data/hand_labels/digital-auto-label-review.md`. | **digital-auto 70.9% → 73.1%** (same v2 predictions, re-scored — no API spend) | — | Confirms the v2 prompt was under-credited by bad labels. nigeria unaffected. Remaining digital-auto gap is contested labels (blanket `placeholder_compliance: Reusable`, `tier_match_difficulty`) + hard taxonomy (`message_type`). |
 
 ## Limitations
 

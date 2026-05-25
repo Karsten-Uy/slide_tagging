@@ -91,7 +91,7 @@ reports **mean ± std**, so prompt changes become measurable. Needs
 prompt/PDF/template are prompt-cached so runs 2..N are cheap.
 
 ```bash
-export ANTHROPIC_API_KEY=sk-...
+cp .env.example .env        # then put your key in .env (gitignored, auto-loaded)
 uv run slide-tagger bench                                  # nigeria + digital-auto, 3 runs each, Opus
 uv run slide-tagger bench --runs 5 --model claude-sonnet-4-6   # more runs, cheaper model
 uv run slide-tagger bench --deck nigeria-economic-outlook-october-2023-v1  # one deck

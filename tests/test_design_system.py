@@ -12,7 +12,54 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
+from slide_tagger.extractors.structural.design_system import (
+    _normalize_font,
+    build_design_system,
+)
+from slide_tagger.extractors.structural.design_system import RawText
 from slide_tagger.extractors.structural.pptx_parser import parse_pptx
+from slide_tagger.schema.enums import FontWeight
+from slide_tagger.schema.models import TextStyle
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("Arial MT", "Arial"),
+        ("ArialMT", "Arial"),
+        ("Arial-BoldMT", "Arial"),
+        ("Helvetica Neue LT Std", "Helvetica Neue"),
+        ("Georgia", "Georgia"),
+        ("Calibri", "Calibri"),
+        (None, None),
+        ("", ""),
+    ],
+)
+def test_normalize_font(raw, expected):
+    assert _normalize_font(raw) == expected
+
+
+def test_title_font_falls_back_to_body():
+    # title placeholder has no font (common); body text is Arial.
+    texts = [
+        RawText(is_title=True, style=TextStyle(font_family=None, size_pt=32.0, weight=FontWeight.BOLD)),
+        RawText(is_title=False, style=TextStyle(font_family="Arial", size_pt=12.0)),
+    ]
+    ds = build_design_system(texts, fills=[], images=[], slide_count=1)
+    assert ds.title_style.font_family == "Arial"  # fell back to body font
+    assert ds.title_style.size_pt == 32.0  # title's own size kept, not body's
+
+
+def test_title_font_outlier_overridden_by_dominant():
+    # a decorative outlier title font is overridden by the deck's dominant (body) font.
+    texts = [
+        RawText(is_title=True, style=TextStyle(font_family="Georgia", size_pt=32.0)),
+        RawText(is_title=False, style=TextStyle(font_family="Arial", size_pt=12.0)),
+        RawText(is_title=False, style=TextStyle(font_family="Arial", size_pt=12.0)),
+    ]
+    ds = build_design_system(texts, fills=[], images=[], slide_count=1)
+    assert ds.title_style.font_family == "Arial"
+    assert ds.title_style.size_pt == 32.0  # size preserved
 
 
 def _logo_bytes() -> bytes:

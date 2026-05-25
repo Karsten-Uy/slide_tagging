@@ -77,6 +77,10 @@ class RecurringElement(BaseModel):
     phash: str | None = None
     position: Position | None = None
     appears_on_slides: list[int] = Field(default_factory=list)
+    # Set by `slide-tagger extract-assets`: relative path to the extracted PNG
+    # (e.g. "assets/<deck-slug>/recurring_00.png") and where the image was found.
+    image_path: str | None = None
+    source: str | None = None  # "slide" | "layout" | "master" | "manual"
 
 
 class DesignSystem(BaseModel):

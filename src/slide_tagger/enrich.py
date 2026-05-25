@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -143,11 +144,14 @@ def enrich_once(
     model: str,
     effort: str = "high",
     max_tokens: int = 64000,
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """Run the enrichment prompt once and return the parsed (enum-sanitized) dict.
 
     The system prompt caches globally; the PDF + template cache per deck, so the
-    2nd..Nth run of a deck is a full prefix cache hit.
+    2nd..Nth run of a deck is a full prefix cache hit. When `verbose`, stream a
+    heartbeat to stderr ('·' per thinking chunk, '.' per output chunk) so a slow
+    call is visibly alive rather than looking hung.
     """
     template_json = json.dumps(template, ensure_ascii=False, sort_keys=True)
     with client.beta.messages.stream(
@@ -176,6 +180,12 @@ def enrich_once(
             }
         ],
     ) as stream:
+        if verbose:
+            for event in stream:
+                if getattr(event, "type", "") == "content_block_delta":
+                    dtype = getattr(getattr(event, "delta", None), "type", "")
+                    print("." if dtype == "text_delta" else "·", end="", file=sys.stderr, flush=True)
+            print("", file=sys.stderr)  # newline after the heartbeat
         msg = stream.get_final_message()
 
     text = "".join(b.text for b in msg.content if b.type == "text")

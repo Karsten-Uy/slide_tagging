@@ -5,6 +5,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
+# Secrets — never commit the real .env (the committed template is .env.example)
+.env
+!.env.example
+
 # Generated data (source decks, renders, tagged output)
 data/
 !data/.gitkeep

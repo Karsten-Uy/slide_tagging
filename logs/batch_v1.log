@@ -1,0 +1,31 @@
+
+=== bench report ===
+prompt: docs\deck_tagging_prompt.md  ·  model: claude-opus-4-7  ·  effort: high  ·  runs/deck: 5
+  nigeria-economic-outlook-october-2023-v1: 77.6% ± 1.4%  (runs: 78%, 76%, 79%, 76%, 79%)
+  digital-auto-report-2023: 70.9% ± 1.8%  (runs: 71%, 71%, 73%, 68%, 72%)
+  CORPUS (mean of deck means): 74.2%
+
+Per-field mean accuracy across all runs (weakest first):
+  audience_level                                   0%  (n_runs=10)
+  inferred_rules.layout_conventions.uses_master_template 0%  (n_runs=10)
+  design_system.grid                               0%  (n_runs=10)
+  slot_types_present                               13%  (n_runs=10)
+  deliverable_format                               50%  (n_runs=10)
+  geography                                        50%  (n_runs=10)
+  confidentiality_tier                             50%  (n_runs=10)
+  content_area                                     50%  (n_runs=10)
+  message_type                                     69%  (n_runs=10)
+  dominant_visual_element                          70%  (n_runs=10)
+  placeholder_compliance                           72%  (n_runs=10)
+  tier_match_difficulty                            77%  (n_runs=10)
+  chart_type                                       79%  (n_runs=10)
+  slide_position_role                              80%  (n_runs=10)
+  embedded_data_present                            84%  (n_runs=10)
+  slide_purpose                                    87%  (n_runs=10)
+  reusability_score_qualitative                    91%  (n_runs=10)
+  audience_level_slide                             100%  (n_runs=10)
+  client_industry                                  100%  (n_runs=10)
+  client_type                                      100%  (n_runs=10)
+  engagement_stage                                 100%  (n_runs=10)
+  inferred_rules.title.uses_action_titles          100%  (n_runs=10)
+  inferred_rules.chart_styling.uses_consistent_palette 100%  (n_runs=10)
