@@ -133,3 +133,18 @@ def test_bad_enum_value_rejected():
         SlideTag(index=0, density={"word_count": 1, "text_blocks": 1,
                                    "visual_elements": 0, "whitespace_ratio_est": 0.5,
                                    "bucket": "sparse"}, slide_purpose="headline")
+
+
+def test_provenance_new_fields_backward_compat():
+    # an existing hand-label (no new provenance fields) still validates and gets
+    # safe defaults — the automated `enrich` additions don't break old records.
+    import json
+
+    p = _ROOT / "reference_data" / "hand_labels" / "nigeria-economic-outlook-october-2023-v1.tagged.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data.pop("_legend", None)
+    tag = DeckTag.model_validate(data)
+    assert tag.provenance is not None
+    assert tag.provenance.low_confidence_fields == []
+    assert tag.provenance.prompt_version is None
+    assert tag.provenance.enriched_by_model is None

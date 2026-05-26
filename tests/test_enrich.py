@@ -4,8 +4,52 @@ enum sanitation and JSON extraction. The API call itself is not unit-tested here
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from slide_tagger.enrich import extract_json, prompt_body, sanitize_enums
+from slide_tagger.enrich import enrich_once, extract_json, prompt_body, sanitize_enums
+
+
+class _FakeStream:
+    """Stands in for client.beta.messages.stream(...) — a context manager that
+    yields no streaming events and returns one canned text block."""
+
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def __iter__(self):
+        return iter(())  # no heartbeat events (verbose=False path)
+
+    def get_final_message(self):
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=self._text)])
+
+
+class _FakeClient:
+    def __init__(self, text: str) -> None:
+        self.beta = SimpleNamespace(
+            messages=SimpleNamespace(stream=lambda **kw: _FakeStream(text))
+        )
+
+
+def test_enrich_once_returns_dict_by_default():
+    client = _FakeClient('{"geography": "Global", "slides": []}')
+    out = enrich_once(client, system="s", template={}, file_id="f", model="m")
+    assert isinstance(out, dict)
+    assert out["geography"] == "Global"
+
+
+def test_enrich_once_return_changes_reports_invented_enum():
+    client = _FakeClient('{"geography": "Atlantis", "slides": []}')
+    out, changes = enrich_once(
+        client, system="s", template={}, file_id="f", model="m", return_changes=True
+    )
+    assert out["geography"] is None  # sanitized away
+    assert any("geography" in c for c in changes)
 
 
 def test_sanitize_nulls_invalid_deck_and_slide_enums():

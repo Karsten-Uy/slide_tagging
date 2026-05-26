@@ -35,7 +35,8 @@ from slide_tagger.extractors.render.paths import deck_slug, render_rel_path, thu
 from slide_tagger.extractors.structural.aggregator import summarize_deck
 from slide_tagger.extractors.structural.pptx_parser import parse_pptx
 from slide_tagger.merge import merge_structural
-from slide_tagger.enrich import enrich_once, prompt_body, upload_pdf
+from slide_tagger.enrich import enrich_once, upload_pdf
+from slide_tagger.prompt_source import resolve_prompt
 from slide_tagger.schema.enums import DensityBucket
 from slide_tagger.schema.models import DeckStructural, DeckSummary, SlideStructural
 from slide_tagger.schema.tagged import DeckTag, blank_tag, legend
@@ -520,10 +521,11 @@ def _cmd_bench(args: argparse.Namespace) -> int:
         print("`bench` needs the anthropic SDK — run `uv sync` (it's now a dependency).", file=sys.stderr)
         return 2
 
-    if not args.prompt.exists():
-        print(f"Prompt file not found: {args.prompt}", file=sys.stderr)
+    try:
+        system = resolve_prompt(args.prompt).text
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
-    system = prompt_body(args.prompt)
 
     try:
         # Hard per-request timeout so a network hang errors out instead of
@@ -663,6 +665,287 @@ def _cmd_bench(args: argparse.Namespace) -> int:
     with open(args.log, "a", encoding="utf-8") as f:
         f.write(row)
     print(f"# appended results row -> {args.log}", file=sys.stderr)
+    return 0
+
+
+# --- enrich (automated Pipeline A+B tagger) ---------------------------------
+
+# Enrichment fields whose absence after merge is worth flagging for human review.
+_DECK_ENRICHMENT = (
+    "client_industry", "client_sub_industry", "client_type", "engagement_stage",
+    "content_area", "audience_level", "deliverable_format", "geography",
+    "confidentiality_tier", "inferred_publisher", "deck_summary_one_sentence",
+)
+# Core per-slide fields (mirrors the completeness check in _cmd_validate).
+_SLIDE_ENRICHMENT = ("slide_purpose", "message_type", "main_message", "dominant_visual_element")
+
+
+def _change_field(change: str) -> str | None:
+    """Field path out of a `sanitize_enums` change string, e.g.
+    "client_industry='X'→null" / "slide3.slide_purpose='X'→null" /
+    "content_area dropped [...]" → "client_industry" / "slide3.slide_purpose" /
+    "content_area"."""
+    head = change.split("=", 1)[0].split(" dropped", 1)[0].strip()
+    return head or None
+
+
+def _unfilled_enrichment_fields(deck: dict) -> set[str]:
+    """Core enrichment fields still empty after merge (deck + per-slide)."""
+    out = {f for f in _DECK_ENRICHMENT if not _is_filled(deck.get(f))}
+    for s in deck.get("slides", []):
+        for f in _SLIDE_ENRICHMENT:
+            if not _is_filled(s.get(f)):
+                out.add(f"slide{s.get('index')}.{f}")
+    return out
+
+
+def _filled_enrichment_fields(deck: dict) -> list[str]:
+    """Enrichment field names the model actually populated (for provenance)."""
+    out = [f for f in _DECK_ENRICHMENT if _is_filled(deck.get(f))]
+    slide_fields = {
+        f for s in deck.get("slides", []) for f in _SLIDE_ENRICHMENT if _is_filled(s.get(f))
+    }
+    return out + [f"slides[].{f}" for f in sorted(slide_fields)]
+
+
+def _build_enriched_record(
+    enriched: dict,
+    template_core: dict,
+    sanitizer_changes: list[str],
+    artifact,  # PromptArtifact
+    model: str,
+    tagged_by: str | None = None,
+) -> dict:
+    """Re-impose Pipeline A structural fields, compute a confidence signal, and stamp
+    provenance. Returns the (not-yet-validated) record dict. Pure — no I/O."""
+    enriched.pop("_legend", None)
+    merged = merge_structural(enriched, template_core)
+
+    flagged = {f for c in sanitizer_changes if (f := _change_field(c))}  # invented enums
+    flagged |= _unfilled_enrichment_fields(merged)  # left blank
+    low_conf = sorted(flagged)
+
+    notes = (
+        f"{len(sanitizer_changes)} enum(s) nulled by sanitizer; "
+        f"{len(low_conf)} field(s) flagged for human review."
+    )
+    prov = merged.get("provenance") or {}
+    prov.update(
+        {
+            "tagged_by": tagged_by or f"auto:{model}",
+            "input_json_source": "automated structural extraction",
+            "fields_filled_by_ai": _filled_enrichment_fields(merged),
+            "confidence_notes": notes,
+            "prompt_version": artifact.version,
+            "enriched_by_model": model,
+            "low_confidence_fields": low_conf,
+        }
+    )
+    merged["provenance"] = prov
+    return merged
+
+
+def _finalize_enrich(
+    enriched: dict,
+    template_core: dict,
+    sanitizer_changes: list[str],
+    artifact,  # PromptArtifact
+    model: str,
+    tagged_by: str | None = None,
+) -> DeckTag:
+    """Build the stamped record and validate it (raises ValidationError on failure).
+    Convenience wrapper around `_build_enriched_record` for callers/tests that want a
+    validated `DeckTag`."""
+    return DeckTag.model_validate(
+        _build_enriched_record(enriched, template_core, sanitizer_changes, artifact, model, tagged_by)
+    )
+
+
+def _convert_pptx_to_pdf(pptx: Path, out_dir: Path) -> Path:
+    """Thin wrapper around the LibreOffice pptx→PDF conversion — a clean monkeypatch
+    point for tests. Raises LibreOfficeNotFound / RenderError from the soffice module."""
+    from slide_tagger.extractors.render.soffice import pptx_to_pdf
+
+    return pptx_to_pdf(pptx, out_dir)
+
+
+def _write_into_corpus(pptx: Path, record: dict, corpus_dir: Path, *, fraction: float) -> None:
+    """Copy the tagged record into the served corpus dir and extract logo PNGs into
+    <corpus>/assets/<slug>/, merging the image elements (deduped by phash) into the
+    corpus copy. Never touches reference_data/hand_labels (the eval answer key)."""
+    import copy
+    from io import BytesIO
+
+    from PIL import Image
+    from pptx import Presentation
+
+    from slide_tagger.extractors.structural.recurring_images import extract_recurring_images
+
+    slug = deck_slug(pptx.name)
+    corpus_dir.mkdir(parents=True, exist_ok=True)
+
+    groups = extract_recurring_images(Presentation(str(pptx)), fraction=fraction)
+    assets_dir = corpus_dir / "assets" / slug
+    if groups:
+        assets_dir.mkdir(parents=True, exist_ok=True)
+    new_elems: list[dict] = []
+    for n, g in enumerate(groups):
+        fname = f"recurring_{n:02d}.png"
+        try:
+            with Image.open(BytesIO(g.blob)) as im:
+                im.convert("RGB").save(assets_dir / fname)
+        except Exception as exc:  # vector/unsupported → manual fallback
+            print(f"# skip group {n}: cannot rasterize ({exc})", file=sys.stderr)
+            continue
+        new_elems.append(
+            {
+                "type": g.type.value if g.type else None,
+                "value": None,
+                "phash": g.phash,
+                "position": g.position.value if g.position else None,
+                "appears_on_slides": g.slide_indices,
+                "image_path": f"assets/{slug}/{fname}",
+                "source": g.source,
+            }
+        )
+
+    corpus_record = copy.deepcopy(record)
+    ds = corpus_record.get("design_system") or {}
+    corpus_record["design_system"] = ds
+    existing = ds.setdefault("recurring_elements", [])
+    have = {r.get("phash") for r in existing if r.get("phash")}
+    added = 0
+    for e in new_elems:
+        if e.get("phash") and e["phash"] in have:
+            continue
+        existing.append(e)
+        added += 1
+
+    dest = corpus_dir / f"{slug}.tagged.json"
+    dest.write_text(
+        json.dumps({"_legend": legend(), **corpus_record}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print(f"# corpus: wrote {dest}  (+{added} logo asset(s))", file=sys.stderr)
+
+
+def _cmd_enrich(args: argparse.Namespace) -> int:
+    import os
+    import tempfile
+
+    resolved = _resolve_deck(args.deck)
+    if isinstance(resolved, int):
+        return resolved
+    pptx = resolved
+
+    try:
+        import anthropic
+    except ImportError:
+        print("`enrich` needs the anthropic SDK — run `uv sync` (it's a dependency).", file=sys.stderr)
+        return 2
+
+    try:
+        artifact = resolve_prompt(args.prompt)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
+        client = anthropic.Anthropic(timeout=float(args.timeout))
+    except Exception as exc:  # missing/invalid key surfaces here
+        print(f"Could not init Anthropic client (is ANTHROPIC_API_KEY set?): {exc}", file=sys.stderr)
+        return 2
+
+    template = _build_template(pptx)
+    template_core = {k: v for k, v in template.items() if k != "_legend"}
+
+    from slide_tagger.extractors.render.soffice import LibreOfficeNotFound, RenderError
+
+    def _do_enrich(pdf_path: Path):
+        print(f"# uploading PDF ({pdf_path.stat().st_size // 1024} KB)…", file=sys.stderr)
+        file_id = upload_pdf(client, pdf_path)
+        print(
+            f"# uploaded (file_id={file_id}); calling {args.model} (effort={args.effort})…",
+            file=sys.stderr,
+        )
+        try:
+            return enrich_once(
+                client, system=artifact.text, template=template, file_id=file_id,
+                model=args.model, effort=args.effort, verbose=not args.quiet,
+                return_changes=True,
+            )
+        finally:
+            try:
+                client.beta.files.delete(file_id)
+            except Exception:
+                pass
+
+    try:
+        if args.pdf is not None:
+            if not args.pdf.exists():
+                print(f"--pdf not found: {args.pdf}", file=sys.stderr)
+                return 2
+            enriched, changes = _do_enrich(args.pdf)
+        else:
+            with tempfile.TemporaryDirectory(prefix="enrich_pdf_") as tmp:
+                try:
+                    pdf_path = _convert_pptx_to_pdf(pptx, Path(tmp))
+                except LibreOfficeNotFound as exc:
+                    print(f"{exc}\nInstall LibreOffice or pass --pdf <file>.", file=sys.stderr)
+                    return 2
+                except RenderError as exc:
+                    print(f"pptx→PDF conversion failed: {exc}", file=sys.stderr)
+                    return 1
+                enriched, changes = _do_enrich(pdf_path)
+    except Exception as exc:  # upload / API errors surface here
+        print(f"# enrich failed ({exc}). Is ANTHROPIC_API_KEY set and valid?", file=sys.stderr)
+        return 1
+
+    record = _build_enriched_record(
+        enriched, template_core, changes, artifact, args.model, tagged_by=args.tagged_by
+    )
+    try:
+        DeckTag.model_validate(record)
+    except ValidationError as exc:
+        print(f"# {len(exc.errors())} schema issue(s) after merge (not structural):", file=sys.stderr)
+        for err in exc.errors()[:10]:
+            print(f"#   {'.'.join(str(x) for x in err['loc'])}: {err['msg']}", file=sys.stderr)
+        if args.strict:
+            return 1
+
+    out_path = args.out or (Path("data/tagged") / f"{deck_slug(pptx.name)}.tagged.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
+        json.dumps({"_legend": legend(), **record}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    n_low = len(record["provenance"]["low_confidence_fields"])
+    print(f"# wrote tagged record -> {out_path}", file=sys.stderr)
+    print(
+        f"# prompt_version={artifact.version}  model={args.model}  low_confidence_fields={n_low}",
+        file=sys.stderr,
+    )
+
+    if args.into_corpus:
+        corpus_dir = args.corpus_dir or Path(
+            os.environ.get("SLIDE_TAGGER_CORPUS_DIR", "../mcp_slide_tagging/corpus")
+        )
+        _write_into_corpus(pptx, record, corpus_dir, fraction=args.fraction)
+
+    if args.render:
+        from slide_tagger.extractors.render import render_deck
+
+        try:
+            result = render_deck(pptx, poppler_path=args.poppler_path)
+            print(
+                f"# rendered {len(result.slides)} slide(s) -> {Path('data/renders') / result.deck_slug}",
+                file=sys.stderr,
+            )
+        except (LibreOfficeNotFound, RenderError) as exc:
+            print(f"# render skipped: {exc}", file=sys.stderr)
+        except Exception as exc:  # poppler / pdf2image failures
+            print(f"# render skipped (is poppler installed? --poppler-path): {exc}", file=sys.stderr)
+
     return 0
 
 
@@ -951,6 +1234,67 @@ def main(argv: list[str] | None = None) -> int:
         help="Append a results row here (auto-created; default: logs/bench_results.md)",
     )
     p_bench.set_defaults(func=_cmd_bench)
+
+    p_enrich = sub.add_parser(
+        "enrich",
+        help="Auto-tag an UNLABELED .pptx via the Claude API (Pipeline A + B) and "
+        "write a finished tagged JSON — no hand-label needed.",
+    )
+    p_enrich.add_argument("deck", type=Path, help="Path to a .pptx file")
+    p_enrich.add_argument(
+        "--pdf", type=Path, default=None,
+        help="Pre-converted deck PDF to upload (skips LibreOffice conversion)",
+    )
+    p_enrich.add_argument(
+        "--model", default="claude-opus-4-7",
+        help="Model (default: claude-opus-4-7; pass claude-sonnet-4-6 for lower cost)",
+    )
+    p_enrich.add_argument(
+        "--effort", default="high", choices=["low", "medium", "high", "max"],
+        help="Thinking/output effort (default: high)",
+    )
+    p_enrich.add_argument(
+        "--prompt", type=Path, default=None,
+        help="Prompt markdown (default: $SLIDE_TAGGER_PROMPT or docs/deck_tagging_prompt.md)",
+    )
+    p_enrich.add_argument(
+        "--timeout", type=float, default=900.0,
+        help="Per-request timeout in seconds (default: 900)",
+    )
+    p_enrich.add_argument("--quiet", action="store_true", help="Suppress the streaming heartbeat")
+    p_enrich.add_argument(
+        "--out", type=Path, default=None,
+        help="Output JSON path (default: data/tagged/<slug>.tagged.json)",
+    )
+    p_enrich.add_argument(
+        "--strict", action="store_true",
+        help="Exit nonzero if the merged record fails schema validation (default: warn + write)",
+    )
+    p_enrich.add_argument(
+        "--tagged-by", dest="tagged_by", default=None,
+        help="Provenance tagged_by (default: auto:<model>)",
+    )
+    p_enrich.add_argument(
+        "--into-corpus", dest="into_corpus", action="store_true",
+        help="Also copy the result (+ extracted logo assets) into the served corpus dir",
+    )
+    p_enrich.add_argument(
+        "--corpus-dir", dest="corpus_dir", type=Path, default=None,
+        help="Corpus dir for --into-corpus (default: $SLIDE_TAGGER_CORPUS_DIR or ../mcp_slide_tagging/corpus)",
+    )
+    p_enrich.add_argument(
+        "--fraction", type=float, default=0.25,
+        help="Min slide-coverage to treat a slide image as recurring (default: 0.25)",
+    )
+    p_enrich.add_argument(
+        "--render", action="store_true",
+        help="Also render slide PNGs (off by default — images aren't served yet)",
+    )
+    p_enrich.add_argument(
+        "--poppler-path", dest="poppler_path", type=str, default=None,
+        help="Path to poppler's bin/ for --render (common on Windows)",
+    )
+    p_enrich.set_defaults(func=_cmd_enrich)
 
     args = parser.parse_args(argv)
     return args.func(args)

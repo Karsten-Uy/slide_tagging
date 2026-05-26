@@ -8,7 +8,9 @@ structural fields are near-100% accurate. These are exactly the fields the VLM
 See [`docs/init.md`](docs/init.md) for the full design and
 [`docs/vlm_prompt_test.md`](docs/vlm_prompt_test.md) for the manual enrichment
 prompt-test loop this pipeline feeds. The enrichment (Pipeline B) prompt itself
-lives in [`docs/deck_tagging_prompt.md`](docs/deck_tagging_prompt.md).
+lives in [`docs/deck_tagging_prompt.md`](docs/deck_tagging_prompt.md). To tag a
+fresh deck end-to-end (Pipeline A + B) in one command, see
+[`docs/enrich.md`](docs/enrich.md).
 
 ## Setup
 
@@ -224,10 +226,15 @@ uv run pytest -q
 - *API benchmark:* `bench` runs the enrichment prompt via the Claude API N times per
   deck and reports mean ± std accuracy, averaging out run-to-run variance (the merge
   guard + enum sanitation are applied automatically). Needs `ANTHROPIC_API_KEY`.
+- *Automated tagging:* `enrich` takes an unlabeled `.pptx` and writes a finished
+  tagged JSON (Pipeline A + B in one shot — no hand-label), stamping the prompt
+  version + low-confidence fields into `provenance`; `--into-corpus` ingests it into
+  the served corpus. The prompt resolves through one chokepoint shared with `bench`.
+  Full guide: [`docs/enrich.md`](docs/enrich.md). Needs `ANTHROPIC_API_KEY`.
 - Pydantic schema (incl. the locked enrichment vocabulary — deck-, slide-, and
   element-level enums), CLI (`tag`, `deck-summary`, `template`, `validate`,
-  `render`, `extract-assets`, `merge`, `score`, `eval`, `bench`), contact-sheet
-  generator, sample deck, and tests.
+  `render`, `extract-assets`, `merge`, `score`, `eval`, `bench`, `enrich`),
+  contact-sheet generator, sample deck, and tests.
 
 **Deferred / known limits:**
 - **PDF parsing** — `.pptx` only for now (init.md open question).

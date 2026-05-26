@@ -145,13 +145,19 @@ def enrich_once(
     effort: str = "high",
     max_tokens: int = 64000,
     verbose: bool = False,
-) -> dict[str, Any]:
+    return_changes: bool = False,
+) -> dict[str, Any] | tuple[dict[str, Any], list[str]]:
     """Run the enrichment prompt once and return the parsed (enum-sanitized) dict.
 
     The system prompt caches globally; the PDF + template cache per deck, so the
     2nd..Nth run of a deck is a full prefix cache hit. When `verbose`, stream a
     heartbeat to stderr ('·' per thinking chunk, '.' per output chunk) so a slow
     call is visibly alive rather than looking hung.
+
+    With `return_changes=True`, returns `(deck, changes)` where `changes` lists the
+    out-of-vocabulary enum values `sanitize_enums` nulled — a confidence signal for
+    the unsupervised `enrich` command. Default `False` keeps the dict-only contract
+    `bench` relies on.
     """
     template_json = json.dumps(template, ensure_ascii=False, sort_keys=True)
     with client.beta.messages.stream(
@@ -190,5 +196,5 @@ def enrich_once(
 
     text = "".join(b.text for b in msg.content if b.type == "text")
     deck = extract_json(text)
-    deck, _ = sanitize_enums(deck)
-    return deck
+    deck, changes = sanitize_enums(deck)
+    return (deck, changes) if return_changes else deck

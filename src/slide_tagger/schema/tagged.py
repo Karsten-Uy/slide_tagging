@@ -140,6 +140,10 @@ class Provenance(BaseModel):
     input_json_source: str = "automated structural extraction"
     fields_filled_by_ai: list[str] = Field(default_factory=list)
     confidence_notes: str | None = None
+    # Set by the automated `enrich` command; null/empty on hand-labels.
+    prompt_version: str | None = None  # content hash of the prompt that produced this
+    enriched_by_model: str | None = None
+    low_confidence_fields: list[str] = Field(default_factory=list)  # for human spot-review
 
 
 class DeckTag(BaseModel):
