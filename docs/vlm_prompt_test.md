@@ -35,7 +35,61 @@ rubric, tweak, repeat. This is the "prompt iteration against a hand-labeled set"
                   slide-tagger eval                     ->  corpus scorecard: overall % vs 85% target + weakest fields
 ```
 
-## Flow
+## Flow — the four-command paste harness (recommended)
+
+The friction-heavy "template / paste / save vlm_out.json / merge / score" sequence
+is now a four-command CLI harness. Same web UI, same $0 cost, but the prep/capture
+/score/log steps are automated so the iteration loop matches `bench`'s rigor — no
+hand-renaming files, no forgetting which deck a `vlm_out.json` was for, no
+re-running merge by hand.
+
+Layout per experiment: `data/paste/<deck-slug>/<variant>/`
+- `in.md` — the paste-ready bundle (system prompt + grounding + template)
+- `meta.json` — pack metadata (`prompt_version`, `source_pptx`, `pack_time_utc`)
+- `run_1.json`, `run_2.json`, … — captured VLM outputs (auto-incrementing N)
+- `score.md` — the most recent `score-paste` scorecard
+
+```bash
+# 1. PACK — build the paste bundle for one variant.
+uv run slide-tagger pack nigeria-economic-outlook-october-2023-v1 \
+    --variant baseline
+# Wrote: data/paste/nigeria-…/baseline/in.md
+
+# 2. INGEST — capture the model's JSON reply (file or stdin).
+#    First, attach the deck PDF and paste in.md into Claude.ai. Save the reply.
+uv run slide-tagger ingest nigeria-economic-outlook-october-2023-v1 \
+    --variant baseline data/paste/nigeria-…/baseline/reply.json
+#    or pipe from the clipboard (PowerShell shown; pbpaste / xclip -o on mac/Linux):
+Get-Clipboard | uv run slide-tagger ingest nigeria-economic-outlook-october-2023-v1 \
+    --variant baseline -
+
+# 3. SCORE — score every run for the variant vs the hand-label answer key.
+uv run slide-tagger score-paste nigeria-economic-outlook-october-2023-v1 \
+    --variant baseline
+# Writes: data/paste/nigeria-…/baseline/score.md
+
+# 4. COMPARE — diff per-field accuracy across two variants of the same deck.
+uv run slide-tagger compare-paste nigeria-economic-outlook-october-2023-v1 \
+    --variants baseline,v2-deck-context
+# Prints a per-field table with the delta and the headline-accuracy delta.
+```
+
+**Pairs with Claude.ai Projects:** set the system prompt as Project instructions
+once, then ignore the `[FULL SYSTEM PROMPT]` block at the top of `in.md` and paste
+only the `[USER MESSAGE]` half. Bundles for very-dense decks may otherwise hit
+claude.ai's message-length cap.
+
+The harness reuses the same `resolve_prompt` → `sanitize_enums` →
+`merge_structural` → `build_enriched_record` chain as `enrich`/`bench`, so paste
+runs validate as `DeckTag` and score with the exact same `score`/`eval` modules.
+Provenance is stamped with `tagged_by: paste:<model>:<variant>` plus extras
+(`paste_variant`, `paste_run_index`) so paste runs are distinguishable from API
+runs.
+
+## Manual flow (legacy, prefer the paste harness above)
+
+If you want the lowest-level loop (no harness, no run-numbering), the original
+sequence still works:
 
 1. **Generate the partial JSON** (Pipeline A structural + `_legend` + blank enrichment fields):
    `uv run slide-tagger template data/source/<deck>.pptx > input.json`

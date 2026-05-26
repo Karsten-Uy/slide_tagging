@@ -47,6 +47,31 @@ _SLIDE_STRUCTURAL = (
     "thumbnail_path",
 )
 
+# Per-slide fields the §A Pipeline-A prefill *may* populate (see
+# `extractors/structural/prefill.py`). Different semantic from `_SLIDE_STRUCTURAL`:
+# the prefill is conservative — it leaves a field null when judgment is needed,
+# so we only re-impose from the template when the template's value is actually
+# filled. A null/empty in the template means "VLM, you decide", and the VLM's
+# answer is kept as-is.
+_SLIDE_PREFILL = (
+    "dominant_visual_element",
+    "chart_type",
+    "embedded_data_present",
+    "slot_types_present",
+    "zones",
+    "placeholder_compliance",
+)
+
+
+def _is_provided(value) -> bool:
+    """A prefill value counts as 'provided' when it's not None and (for list/dict/
+    str) non-empty. `False` is provided (matters for `embedded_data_present`)."""
+    if value is None:
+        return False
+    if isinstance(value, (list, dict, str)):
+        return len(value) > 0
+    return True
+
 
 def merge_structural(vlm: dict[str, Any], template: dict[str, Any]) -> dict[str, Any]:
     """Return a record with the VLM's enrichment but template's structural fields.
@@ -85,6 +110,11 @@ def merge_structural(vlm: dict[str, Any], template: dict[str, Any]) -> dict[str,
             continue
         for key in _SLIDE_STRUCTURAL:
             if key in tmpl_slide:
+                slide[key] = copy.deepcopy(tmpl_slide[key])
+        # Prefill fields: only overwrite when Pipeline A actually filled them
+        # (a null/empty in the template means "leave the VLM's answer alone").
+        for key in _SLIDE_PREFILL:
+            if key in tmpl_slide and _is_provided(tmpl_slide[key]):
                 slide[key] = copy.deepcopy(tmpl_slide[key])
 
     missing_in_vlm = [i for i in tmpl_slides if i not in vlm_indices]

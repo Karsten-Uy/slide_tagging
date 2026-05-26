@@ -37,6 +37,7 @@ from slide_tagger.extractors.structural.pptx_parser import parse_pptx
 from slide_tagger.merge import merge_structural
 from slide_tagger.enrich import enrich_once, upload_pdf
 from slide_tagger.prompt_source import resolve_prompt
+from slide_tagger.provenance import build_enriched_record, is_filled
 from slide_tagger.schema.enums import DensityBucket
 from slide_tagger.schema.models import DeckStructural, DeckSummary, SlideStructural
 from slide_tagger.schema.tagged import DeckTag, blank_tag, legend
@@ -331,13 +332,9 @@ def _cmd_extract_assets(args: argparse.Namespace) -> int:
     return 0
 
 
-def _is_filled(value: object) -> bool:
-    """A field counts as filled if it's a non-empty value (str/enum/list)."""
-    if value is None:
-        return False
-    if isinstance(value, (str, list, dict)):
-        return len(value) > 0
-    return True
+# `is_filled` moved to provenance.py (shared with the paste harness); aliased for
+# any callers/tests still expecting the private name.
+_is_filled = is_filled
 
 
 def _load_tag(path: Path) -> DeckTag | int:
@@ -504,10 +501,22 @@ _BENCH_DEFAULT = ["nigeria-economic-outlook-october-2023-v1", "digital-auto-repo
 
 
 def _build_template(pptx: Path) -> dict:
-    """Pipeline A structural template + _legend, identical to `template` output."""
+    """Pipeline A structural template + _legend, identical to `template` output —
+    but with the 6 §A pre-fillable fields populated per slide. The merge guard
+    (see `merge._SLIDE_STRUCTURAL`) will re-impose these after the VLM round-trip
+    so a VLM that 'helpfully' overwrote a pre-fill can't corrupt them."""
+    from slide_tagger.extractors.structural.prefill import prefill_deck
+
     tag = blank_tag(parse_pptx(pptx))
     _attach_render_paths(tag)
-    return {"_legend": legend(), **tag.model_dump(mode="json")}
+    out = {"_legend": legend(), **tag.model_dump(mode="json")}
+
+    prefilled = prefill_deck(pptx)
+    out_slides = out.get("slides", [])
+    for slide_dict, fields in zip(out_slides, prefilled):
+        for k, v in fields.items():
+            slide_dict[k] = v
+    return out
 
 
 def _cmd_bench(args: argparse.Namespace) -> int:
@@ -670,79 +679,18 @@ def _cmd_bench(args: argparse.Namespace) -> int:
 
 # --- enrich (automated Pipeline A+B tagger) ---------------------------------
 
-# Enrichment fields whose absence after merge is worth flagging for human review.
-_DECK_ENRICHMENT = (
-    "client_industry", "client_sub_industry", "client_type", "engagement_stage",
-    "content_area", "audience_level", "deliverable_format", "geography",
-    "confidentiality_tier", "inferred_publisher", "deck_summary_one_sentence",
+# Enrichment-fields constants + record assembly moved to `provenance.py` (shared
+# with the paste harness so both produce identical records). The aliases here
+# preserve any external callers/tests that imported the private names.
+from slide_tagger.provenance import (
+    DECK_ENRICHMENT_FIELDS as _DECK_ENRICHMENT,
+    SLIDE_ENRICHMENT_FIELDS as _SLIDE_ENRICHMENT,
+    change_field as _change_field,
+    filled_enrichment_fields as _filled_enrichment_fields,
+    unfilled_enrichment_fields as _unfilled_enrichment_fields,
 )
-# Core per-slide fields (mirrors the completeness check in _cmd_validate).
-_SLIDE_ENRICHMENT = ("slide_purpose", "message_type", "main_message", "dominant_visual_element")
 
-
-def _change_field(change: str) -> str | None:
-    """Field path out of a `sanitize_enums` change string, e.g.
-    "client_industry='X'→null" / "slide3.slide_purpose='X'→null" /
-    "content_area dropped [...]" → "client_industry" / "slide3.slide_purpose" /
-    "content_area"."""
-    head = change.split("=", 1)[0].split(" dropped", 1)[0].strip()
-    return head or None
-
-
-def _unfilled_enrichment_fields(deck: dict) -> set[str]:
-    """Core enrichment fields still empty after merge (deck + per-slide)."""
-    out = {f for f in _DECK_ENRICHMENT if not _is_filled(deck.get(f))}
-    for s in deck.get("slides", []):
-        for f in _SLIDE_ENRICHMENT:
-            if not _is_filled(s.get(f)):
-                out.add(f"slide{s.get('index')}.{f}")
-    return out
-
-
-def _filled_enrichment_fields(deck: dict) -> list[str]:
-    """Enrichment field names the model actually populated (for provenance)."""
-    out = [f for f in _DECK_ENRICHMENT if _is_filled(deck.get(f))]
-    slide_fields = {
-        f for s in deck.get("slides", []) for f in _SLIDE_ENRICHMENT if _is_filled(s.get(f))
-    }
-    return out + [f"slides[].{f}" for f in sorted(slide_fields)]
-
-
-def _build_enriched_record(
-    enriched: dict,
-    template_core: dict,
-    sanitizer_changes: list[str],
-    artifact,  # PromptArtifact
-    model: str,
-    tagged_by: str | None = None,
-) -> dict:
-    """Re-impose Pipeline A structural fields, compute a confidence signal, and stamp
-    provenance. Returns the (not-yet-validated) record dict. Pure — no I/O."""
-    enriched.pop("_legend", None)
-    merged = merge_structural(enriched, template_core)
-
-    flagged = {f for c in sanitizer_changes if (f := _change_field(c))}  # invented enums
-    flagged |= _unfilled_enrichment_fields(merged)  # left blank
-    low_conf = sorted(flagged)
-
-    notes = (
-        f"{len(sanitizer_changes)} enum(s) nulled by sanitizer; "
-        f"{len(low_conf)} field(s) flagged for human review."
-    )
-    prov = merged.get("provenance") or {}
-    prov.update(
-        {
-            "tagged_by": tagged_by or f"auto:{model}",
-            "input_json_source": "automated structural extraction",
-            "fields_filled_by_ai": _filled_enrichment_fields(merged),
-            "confidence_notes": notes,
-            "prompt_version": artifact.version,
-            "enriched_by_model": model,
-            "low_confidence_fields": low_conf,
-        }
-    )
-    merged["provenance"] = prov
-    return merged
+_build_enriched_record = build_enriched_record
 
 
 def _finalize_enrich(
@@ -754,10 +702,10 @@ def _finalize_enrich(
     tagged_by: str | None = None,
 ) -> DeckTag:
     """Build the stamped record and validate it (raises ValidationError on failure).
-    Convenience wrapper around `_build_enriched_record` for callers/tests that want a
+    Convenience wrapper around `build_enriched_record` for callers/tests that want a
     validated `DeckTag`."""
     return DeckTag.model_validate(
-        _build_enriched_record(enriched, template_core, sanitizer_changes, artifact, model, tagged_by)
+        build_enriched_record(enriched, template_core, sanitizer_changes, artifact, model, tagged_by)
     )
 
 
@@ -946,6 +894,245 @@ def _cmd_enrich(args: argparse.Namespace) -> int:
         except Exception as exc:  # poppler / pdf2image failures
             print(f"# render skipped (is poppler installed? --poppler-path): {exc}", file=sys.stderr)
 
+    return 0
+
+
+def _resolve_paste_deck(deck_arg: str, sources_dir: Path) -> tuple[Path, str] | int:
+    """Resolve a `pack`/`ingest` positional `deck` (either a .pptx path or a stem
+    that lives in `sources_dir`) → `(pptx_path, deck_slug)`. Mirrors `_resolve_deck`
+    + `_BENCH_DEFAULT` stem lookup so the paste commands accept whichever form is
+    handier."""
+    arg_path = Path(deck_arg)
+    if arg_path.suffix.lower() == ".pptx" and arg_path.exists():
+        return arg_path, deck_slug(arg_path.name)
+    # Treat as a stem.
+    candidate = sources_dir / f"{deck_arg}.pptx"
+    if not candidate.exists():
+        print(
+            f"Deck not found: tried {arg_path} (as .pptx) and {candidate} (as stem in {sources_dir}).",
+            file=sys.stderr,
+        )
+        return 2
+    return candidate, deck_slug(candidate.name)
+
+
+def _cmd_pack(args: argparse.Namespace) -> int:
+    """Build the paste bundle: write `in.md` + `meta.json` under
+    `data/paste/<deck>/<variant>/`. The bundle is what the user pastes into
+    claude.ai (or any other VLM web UI) to reproduce the API enrichment for $0."""
+    from slide_tagger import paste as paste_mod
+
+    resolved = _resolve_paste_deck(args.deck, args.sources)
+    if isinstance(resolved, int):
+        return resolved
+    pptx, slug = resolved
+
+    try:
+        artifact = resolve_prompt(args.prompt)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    template = _build_template(pptx)
+    in_path, meta = paste_mod.write_pack(
+        artifact=artifact, template=template, deck_slug=slug,
+        variant=args.variant, source_pptx=pptx, base=args.paste_dir,
+    )
+    print(f"# wrote paste bundle  -> {in_path}", file=sys.stderr)
+    print(
+        f"# prompt_version={artifact.version}  variant={args.variant}  "
+        f"next_run={paste_mod.next_run_index(paste_mod.variant_dir(slug, args.variant, args.paste_dir))}",
+        file=sys.stderr,
+    )
+    # Echo the path on stdout so callers can pipe / open it.
+    print(in_path)
+    return 0
+
+
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    """Capture a VLM web-UI response, sanitize enums, re-impose Pipeline A fields,
+    stamp provenance, and write `run_N.json` (auto-incrementing N)."""
+    from slide_tagger import paste as paste_mod
+
+    try:
+        meta = paste_mod.load_meta(args.deck, args.variant, args.paste_dir)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    pptx = Path(meta.source_pptx)
+    if not pptx.exists():
+        print(
+            f"# meta references missing source pptx: {pptx} (re-run `pack` after restoring it).",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        artifact = resolve_prompt(args.prompt)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    # A prompt-version mismatch usually means the user edited the prompt between
+    # pack and ingest — warn so a score-paste delta isn't silently mis-attributed.
+    if artifact.version != meta.prompt_version:
+        print(
+            f"# warning: prompt_version changed since pack "
+            f"({meta.prompt_version} -> {artifact.version}); record is stamped "
+            f"with the CURRENT prompt version.",
+            file=sys.stderr,
+        )
+
+    try:
+        vlm_output = paste_mod.read_vlm_output(args.reply)
+    except FileNotFoundError as exc:
+        print(f"Reply not found: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:  # extract_json couldn't find a JSON object
+        print(f"Could not parse VLM reply as JSON: {exc}", file=sys.stderr)
+        return 1
+
+    template = _build_template(pptx)
+    template_core = {k: v for k, v in template.items() if k != "_legend"}
+
+    out_path, record, changes = paste_mod.ingest_run(
+        vlm_output=vlm_output, template_core=template_core, artifact=artifact,
+        deck_slug=args.deck, variant=args.variant, model=args.model,
+        tagged_by=args.tagged_by, base=args.paste_dir,
+    )
+
+    try:
+        DeckTag.model_validate(record)
+    except ValidationError as exc:
+        print(
+            f"# {len(exc.errors())} schema issue(s) after merge (not structural):",
+            file=sys.stderr,
+        )
+        for err in exc.errors()[:10]:
+            print(f"#   {'.'.join(str(x) for x in err['loc'])}: {err['msg']}", file=sys.stderr)
+        if args.strict:
+            return 1
+
+    n_low = len(record["provenance"]["low_confidence_fields"])
+    print(f"# wrote {out_path}", file=sys.stderr)
+    print(
+        f"# enum changes={len(changes)}  low_confidence_fields={n_low}  "
+        f"prompt_version={artifact.version}",
+        file=sys.stderr,
+    )
+    print(out_path)
+    return 0
+
+
+def _cmd_score_paste(args: argparse.Namespace) -> int:
+    """Score every `run_N.json` for a variant against the hand-label answer key.
+    Writes the scorecard to `data/paste/<deck>/<variant>/score.md` and echoes it
+    to stdout. Mirrors `bench`'s per-deck reporting but on the paste runs."""
+    from slide_tagger import paste as paste_mod
+
+    runs = paste_mod.list_runs(args.deck, args.variant, args.paste_dir)
+    if not runs:
+        print(
+            f"No runs in {paste_mod.variant_dir(args.deck, args.variant, args.paste_dir)}. "
+            f"Run `slide-tagger ingest {args.deck} --variant {args.variant} <reply.json>` first.",
+            file=sys.stderr,
+        )
+        return 2
+
+    label_path = args.labels / f"{args.deck}.tagged.json"
+    if not label_path.exists():
+        print(f"Hand-label not found: {label_path}", file=sys.stderr)
+        return 2
+    truth = _load_tag(label_path)
+    if isinstance(truth, int):
+        return truth
+
+    deck_scores = []
+    for run in runs:
+        pred = _load_tag(run)
+        if isinstance(pred, int):
+            return pred
+        deck_scores.append(score_deck(pred, truth, name=run.stem))
+
+    corpus = score_corpus(deck_scores)
+    report = render_console(corpus)
+    print(report)
+
+    score_path = paste_mod.variant_dir(args.deck, args.variant, args.paste_dir) / "score.md"
+    score_path.write_text(render_markdown(corpus), encoding="utf-8")
+    print(f"\n# wrote {score_path}", file=sys.stderr)
+    return 0
+
+
+def _cmd_compare_paste(args: argparse.Namespace) -> int:
+    """Diff per-field accuracy across two named variants for one deck. Tells you
+    concretely 'v2's `message_type` is +6pp vs v1, `slide_purpose` is -2pp, …'."""
+    from slide_tagger import paste as paste_mod
+
+    variants = [v.strip() for v in args.variants.split(",") if v.strip()]
+    if len(variants) != 2:
+        print(
+            f"--variants needs exactly two comma-separated names; got {variants}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    label_path = args.labels / f"{args.deck}.tagged.json"
+    if not label_path.exists():
+        print(f"Hand-label not found: {label_path}", file=sys.stderr)
+        return 2
+    truth = _load_tag(label_path)
+    if isinstance(truth, int):
+        return truth
+
+    def _variant_corpus(v: str):
+        runs = paste_mod.list_runs(args.deck, v, args.paste_dir)
+        if not runs:
+            print(
+                f"No runs for variant {v!r} (looked in "
+                f"{paste_mod.variant_dir(args.deck, v, args.paste_dir)}).",
+                file=sys.stderr,
+            )
+            return None
+        deck_scores = []
+        for run in runs:
+            pred = _load_tag(run)
+            if isinstance(pred, int):
+                return None
+            deck_scores.append(score_deck(pred, truth, name=run.stem))
+        return score_corpus(deck_scores)
+
+    a_name, b_name = variants
+    a, b = _variant_corpus(a_name), _variant_corpus(b_name)
+    if a is None or b is None:
+        return 2
+
+    all_fields = sorted(set(a.results) | set(b.results))
+
+    def _n(corpus) -> int:
+        return sum(r.scored for r in corpus.results.values())
+
+    a_acc = a.headline_accuracy or 0.0
+    b_acc = b.headline_accuracy or 0.0
+    print(f"# compare-paste  deck={args.deck}  variants={a_name!r} vs {b_name!r}")
+    print(f"# {a_name}: corpus headline {a_acc:.3f}  (n={_n(a)}, runs={len(a.deck_names)})")
+    print(f"# {b_name}: corpus headline {b_acc:.3f}  (n={_n(b)}, runs={len(b.deck_names)})")
+    print(f"# Δ headline: {b_acc - a_acc:+.3f}  ({b_name} − {a_name})")
+    print()
+    header = f"{'field':40s}  {a_name:>10s}  {b_name:>10s}  {'delta':>8s}"
+    print(header)
+    print("-" * len(header))
+    for path in all_fields:
+        ra, rb = a.results.get(path), b.results.get(path)
+        aa = ra.accuracy if ra and ra.accuracy is not None else None
+        ab = rb.accuracy if rb and rb.accuracy is not None else None
+        d = (ab - aa) if (aa is not None and ab is not None) else None
+        print(
+            f"{path:40s}  "
+            f"{('--' if aa is None else f'{aa:.3f}'):>10s}  "
+            f"{('--' if ab is None else f'{ab:.3f}'):>10s}  "
+            f"{('--' if d is None else f'{d:+.3f}'):>8s}"
+        )
     return 0
 
 
@@ -1295,6 +1482,111 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to poppler's bin/ for --render (common on Windows)",
     )
     p_enrich.set_defaults(func=_cmd_enrich)
+
+    # --- Web-UI paste harness (zero-API-cost iteration) ----------------------
+    paste_dir_help = "Paste-harness output root (default: data/paste)"
+
+    p_pack = sub.add_parser(
+        "pack",
+        help="Build a paste-ready bundle (system prompt + grounding + template) "
+        "for a deck — paste into claude.ai to enrich for $0 (instead of `enrich`).",
+    )
+    p_pack.add_argument(
+        "deck", type=str,
+        help="A .pptx path OR a deck stem looked up in --sources (e.g. nigeria-...-v1)",
+    )
+    p_pack.add_argument(
+        "--variant", required=True,
+        help="Short experiment label (e.g. 'baseline', 'v2-deck-context'); creates "
+        "data/paste/<deck>/<variant>/",
+    )
+    p_pack.add_argument(
+        "--prompt", type=Path, default=None,
+        help="Prompt markdown (default: $SLIDE_TAGGER_PROMPT or docs/deck_tagging_prompt.md)",
+    )
+    p_pack.add_argument(
+        "--sources", type=Path, default=Path("data/source"),
+        help="Dir where stems resolve to <stem>.pptx (default: data/source)",
+    )
+    p_pack.add_argument(
+        "--paste-dir", dest="paste_dir", type=Path, default=Path("data/paste"),
+        help=paste_dir_help,
+    )
+    p_pack.set_defaults(func=_cmd_pack)
+
+    p_ingest = sub.add_parser(
+        "ingest",
+        help="Capture a VLM web-UI reply for a packed variant, sanitize + merge + "
+        "stamp provenance, and write the next run_N.json under the variant dir.",
+    )
+    p_ingest.add_argument(
+        "deck", type=str, help="Deck slug (as printed by `pack`)",
+    )
+    p_ingest.add_argument(
+        "--variant", required=True, help="Same variant label used with `pack`",
+    )
+    p_ingest.add_argument(
+        "reply", type=str,
+        help="Path to a JSON file with the model's reply, or '-' to read from stdin",
+    )
+    p_ingest.add_argument(
+        "--prompt", type=Path, default=None,
+        help="Prompt markdown (default: $SLIDE_TAGGER_PROMPT or docs/deck_tagging_prompt.md)",
+    )
+    p_ingest.add_argument(
+        "--model", default="claude-ai-web",
+        help="Model name to stamp in provenance (default: claude-ai-web)",
+    )
+    p_ingest.add_argument(
+        "--tagged-by", dest="tagged_by", default=None,
+        help="Provenance tagged_by (default: paste:<model>:<variant>)",
+    )
+    p_ingest.add_argument(
+        "--paste-dir", dest="paste_dir", type=Path, default=Path("data/paste"),
+        help=paste_dir_help,
+    )
+    p_ingest.add_argument(
+        "--strict", action="store_true",
+        help="Exit nonzero if the merged record fails schema validation (default: warn + write)",
+    )
+    p_ingest.set_defaults(func=_cmd_ingest)
+
+    p_scorep = sub.add_parser(
+        "score-paste",
+        help="Score every run_N.json for a paste variant against its hand-label; "
+        "writes a Markdown scorecard alongside the runs.",
+    )
+    p_scorep.add_argument("deck", type=str, help="Deck slug")
+    p_scorep.add_argument("--variant", required=True, help="Variant label")
+    p_scorep.add_argument(
+        "--labels", type=Path, default=Path("reference_data/hand_labels"),
+        help="Hand-label dir (default: reference_data/hand_labels)",
+    )
+    p_scorep.add_argument(
+        "--paste-dir", dest="paste_dir", type=Path, default=Path("data/paste"),
+        help=paste_dir_help,
+    )
+    p_scorep.set_defaults(func=_cmd_score_paste)
+
+    p_cmp = sub.add_parser(
+        "compare-paste",
+        help="Diff per-field accuracy across two paste variants for one deck "
+        "(answers: did variant v2 actually help vs v1?).",
+    )
+    p_cmp.add_argument("deck", type=str, help="Deck slug")
+    p_cmp.add_argument(
+        "--variants", required=True,
+        help="Two comma-separated variant names to compare, e.g. 'baseline,v2-deck-context'",
+    )
+    p_cmp.add_argument(
+        "--labels", type=Path, default=Path("reference_data/hand_labels"),
+        help="Hand-label dir (default: reference_data/hand_labels)",
+    )
+    p_cmp.add_argument(
+        "--paste-dir", dest="paste_dir", type=Path, default=Path("data/paste"),
+        help=paste_dir_help,
+    )
+    p_cmp.set_defaults(func=_cmd_compare_paste)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -42,6 +42,21 @@ Produce an enriched JSON that:
 - Fills the `design_system` hand-label fields — `grid` and each `recurring_elements[].type` (and its `value` where it has text) — described below
 - Fills the `provenance` block recording what was filled in by you vs. extracted by the script
 
+### Pre-filled per-slide fields — leave alone when set
+
+Pipeline A now also pre-fills six per-slide fields when it can determine them deterministically from `python-pptx`. When you see any of these fields **already populated** in `input.json`, **leave the value exactly as-is** — Pipeline A is more reliable than vision for these. When a field is `null` or `[]`, you must still fill it from the deck content.
+
+| Field | Pipeline A can pre-fill it when… |
+|---|---|
+| `dominant_visual_element` | Pure single-type slides (chart-only, table-only, single image, pure text) or clearly mixed. You fill: `Diagram`, `Icon-based`, `Framework graphic`. |
+| `chart_type` | Slide has a **native** PPT chart (mapped from `XL_CHART_TYPE`). You fill: chart-screenshot images, slides Pipeline A returned null on. |
+| `embedded_data_present` | Always — `True` iff a native chart object exists; `False` otherwise (incl. chart-screenshot images). |
+| `slot_types_present` | Core types: `title`, `chart`, `image`, `table`, `body-text`, `bullet-list`, plus `footer`/`page-number`/`subtitle` when those are explicit PP_PLACEHOLDERs. You may **append** `callout-box` and `citation` (Pipeline A doesn't detect these). |
+| `zones` | One zone per content shape, with structural region (`top-band` / `left-main` / `center` / `right-callout` / `bottom-band`) and a basic semantic name. You may refine the names (e.g. rename `body` → `insights` / `methodology`) but keep the regions. |
+| `placeholder_compliance` | `Pristine` (≥70% master placeholders) or `Reusable` (30-70%). You fill `Bespoke` and `Broken` (and may override `Reusable` → `Bespoke` if the layout is truly one-off — but not the other way around). |
+
+The merge guard re-imposes Pipeline A's pre-filled values after you reply, so overwriting them is silently discarded. Don't waste tokens re-deriving fields that are already populated.
+
 ### Schema (three levels)
 
 #### Deck-level (top-level object)
